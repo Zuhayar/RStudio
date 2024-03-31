@@ -1,0 +1,95 @@
+
+# Problem 0
+```{r}
+mlb = read.table("mlb.txt", sep = "\t", header = T)
+```
+
+# Problem 1
+```{r}
+mlb = read.table("mlb.txt", sep = "\t", header = T)
+# (a) 
+training_data=mlb[0:20,]
+# (b)
+model= lm(AvgRuns ~ H + X2B + X3B + HR + SB + BB + SO,data = training_data)
+summary(model)
+## Adj. R^2: 0.8923 
+# (c)
+
+best_model = regsubsets(AvgRuns ~ H + X2B + X3B + HR + SB + BB + SO,data = training_data)
+summary(best_model)
+
+#AvgRuns ~ H + HR + BB
+
+model3=lm(AvgRuns ~ H + HR + BB,data = training_data)
+summary(model3)
+
+## Reg Equation: AvgRuns = -3.4680059 + 0.0003639(H) +  0.0036123(HR) + 0.0028929(BB)
+# (d)
+predicted_avgruns_training = -3.4680059 + training_data$H*0.0003639 + training_data$HR*0.0036123 + training_data$BB*0.0028929
+
+predicted_avgruns_testing = -3.4680059 + testing_data$H*0.0003639 + testing_data$HR*0.0036123 + testing_data$BB*0.0028929
+
+
+
+
+# (e)
+training_difference = predicted_avgruns_training - training_data$AvgRuns
+ 
+testing_difference = predicted_avgruns_testing - testing_data$AvgRuns
+
+mean(training_difference)
+mean(testing_difference)
+ 
+# training data error = -5.431024
+# testing data error = -5.161322
+
+mean(abs(training_difference-testing_difference))
+
+
+```
+Comment for part (e): There is a marginal difference and this can be explained by maybe the quality of the team. A better team may have more AvgRuns and maybe the training data had better teams in their data set or vice versa
+
+
+# Problem 2
+```{r}
+# (a)
+QualityOffense = rep(0,nrow(training_data))
+QualityOffense[training_data$AvgRuns > 5] = 1
+training_data = data.frame(training_data, QualityOffense)
+
+QualityOffense1 = rep(0,nrow(testing_data))
+QualityOffense1[testing_data$AvgRuns > 5] = 1
+testing_data = data.frame(testing_data, QualityOffense1)
+
+QualityOffense_mlb = rep(0,nrow(mlb))
+QualityOffense_mlb[mlb$AvgRuns > 5] = 1
+mlb = data.frame(mlb, QualityOffense_mlb)
+
+# (b)
+model_Quality_offense = lm(QualityOffense_mlb~H + HR + BB,data = mlb)
+
+## Regression Equation: Quality_OFfense = -6.7452337 + 0.0035625*H +  0.0021308 *HR + 0.0029668*BB
+
+# (c)
+mlb5 = mlb[mlb$QualityOffense_mlb.1 == 1,]
+mlbnot5 = mlb[mlb$QualityOffense_mlb.1 == 0,]
+
+
+Quality_offense1_prediction = -6.7452337 + 0.0035625*mlb5$H + 0.0021308*mlb5$HR + 0.0029668*mlb5$BB
+
+Quality_offense0_prediction = -6.7452337 + 0.0035625*mlbnot5$H + 0.0021308*mlbnot5$HR + 0.0029668*mlbnot5$BB
+
+ mean(Quality_offense1_prediction)
+mean(Quality_offense0_prediction)
+
+## Comment: The difference in these 2 grups is 0.5134387 and the average output for teams who have more than 5 AvgRuns is different 
+
+best_model3 = regsubsets(QualityOffense_mlb.1 ~ H + HR + BB,data = mlb)
+summary(best_model3)
+# (d) 
+```
+Comment for part (d): 
+ After using the best subsets function the best predictors of QualityOffense is hits which makes sense as a team gets more hits the more likely they are to score runs.
+
+
+
