@@ -1,0 +1,117 @@
+data = read.table("Midterm2016.txt", sep = "\t", header = T)
+```
+
+
+# Problem 1
+```{r}
+# (a)
+data = read.table("Midterm2016.txt", sep = "\t", header = T)
+cor.test(data$INCOME,data$hours.worked)
+# Null Hypo: Hours worked and Income aren't linearly related as ρ = 0
+# Alt Hypo: Hours worked and Income are linearly related as ρ ≠ 0.
+#p-value:1.137e-06
+
+# Conclusion: The correlation between income and hours worked isn't 0
+
+# (b)
+
+plot(data$INCOME ~ data$hours.worked, xlab = "Hours Worked",ylab= "Income",main = "Income vs Hours worked 2016 midterm")
+
+# (c)
+lm(formula = data$INCOME ~ data$hours.worked, data = data)
+#Income projection = 11211.6 + 915.4* hours worked
+
+# (d)
+model = lm(data=data,data$INCOME~data$hours.worked)
+summary(model)
+#add and subtract standard error to slope and intercept
+
+#Intercept prediction ranges from - 2079.6 to 20343.6
+
+#slope prediction ranges from - 730.2 - 1100.6
+
+
+# (e)
+gvlma(model)
+dwtest(model)
+model = lm(data=data,data$INCOME~data$hours.worked)
+par(mfrow = c(2,2))
+plot(model)
+
+#independence - p value of dw test is 2.2e-16 therefore income and hours worked aren't independent 
+
+#Normalty of errors -There is bunching and qq plot has a s shape therefore normality isn't accpeted 
+
+#Linearity of residuals - not accepted as residuals vs fitted isn't straight
+
+#Constant Variance - accepted as variance seems to be relatively symmetric  
+
+
+
+
+# (f)
+plot(data$INCOME ~ data$hours.worked, xlab = "Hours Worked",ylab= "Income",main = "Income vs Hours worked 2016 midterm")
+abline(lm(data = data,data$INCOME ~ data$hours.worked))
+# (g)
+
+#The hours worked doesn't explain the income to well as barely any of the data can be exaplained by the projection. in fact the variance is only .05841
+```
+
+# Problem 2
+```{r}
+# b(a)
+cor.test(data$job.prestige,data$INCOME)
+
+# Null Hypo:  correlation = 0 between job prestige and Income 
+# Alt Hypo: correlation ≠ 0 between job prestige and Income  .
+#p-value:1.874e-12
+
+# Conclusion: There corelation between job prestige and income isn't 0
+
+
+# b(b)
+plot(data$job.prestige~data$INCOME,ylab="Job Prestige",xlab = "Income",main = "Job Prestige vs Income 2016")
+
+# a(c)
+
+#Projected Job Prestige =41.007398 + (0.000107*Income)
+
+# b(d)
+model1 = lm(data=data,job.prestige~INCOME)
+summary(model1)
+#add and subtract standard error to slope and intercept
+
+#Intercept prediction ranges from - 39.98 to 42.04
+
+#slope prediction ranges from - 9.229e-05 to 0.00012171
+
+
+
+# b(e)
+model1 = lm(data=data,job.prestige~INCOME)
+par(mfrow = c(2,2))
+plot(model1)
+
+#independence - p value of dw test is 3.964e-15 therefore job prestige and income aren't independent 
+
+#Normalty of errors -There is a slight s shapped qq plot but mostly diagonal so normality is accepted
+
+#Linearity of residuals - not accepted as residuals vs fitted isn't straight
+
+#Constant Variance - accepted as variance seems to be relatively symmetric around prediction
+
+
+# b(f)
+plot(data$job.prestige~data$INCOME,ylab="Job Prestige",xlab = "Income",main = "Job Prestige vs Income 2016")
+abline(lm(data = data,data$job.prestige ~ data$INCOME))
+
+#b(g)
+#The income doesn't explain the job prestige to well as barely any of the data can be explained by the projection. in fact the variance is only .1184532
+
+#b 
+Prestige <-c(10000,30000,600000,120000,1000000)
+INCOME <- c(10000,30000,600000,120000,1000000)
+data_sub <- data.frame(Prestige,INCOME)
+predict(model1,data_sub,interval = "predict")
+ #The gaps get larger as the Income Increases 
+```
