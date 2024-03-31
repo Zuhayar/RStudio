@@ -1,0 +1,58 @@
+
+```{r}
+hotels = read.table("hotel_reviews.txt", sep = , header = T)
+# install.packages("NbClust") <- Make sure you've installed this package!
+```
+
+# Problem 0
+```{r}
+# (a)
+hotels = read.table("hotel_reviews.txt", sep = , header = T)
+hotels.std = hotels[hotels$Total_Number_of_Reviews >= 50, ]
+
+# (b)
+hotels.std[,3:11] = data.frame(scale(hotels.std[,3:11]))
+quality_hotel = rep(0, nrow(hotels.std))
+quality_hotel[hotels.std$Average_Score >= 1] = 1
+hotels.std = data.frame(hotels.std, quality_hotel)
+
+# (c)
+features = c("Proportion_Postive", "Proportion_Negative", "Positive_Word_Counts", "Negative_Word_Counts")
+pairs(hotels.std[,features])
+```
+
+# Problem 1
+```{r}
+# (a)
+cluster_labels = kmeans(hotels.std[,features],3)
+plot(hotels.std[,features],col = cluster_labels$cluster)
+# (b)
+hotels.std.rand = hotels.std[sample(nrow(hotels.std), 200),]
+best_k <- NbClust(hotels.std.rand[,features],min.nc = 3,max.nc = 6, method = "kmeans")
+#best number of clusters is 3 
+
+```
+
+# Problem 2
+```{r}
+# (a)
+d <- dist(hotels.std[,features],method = "euclidean")
+h_cluster_tree = hclust(d,method = "single")
+clust_3_labels = cutree(h_cluster_tree,3)
+clust_3__kmeans = kmeans(hotels.std[,features],3)
+clust_3_labels_kmeans = clust_3__kmeans$cluster
+plot(hotels.std[,features],col = clust_3_labels)
+# (b)
+# The clusters are completley dfferent in prblem 1 it seemed that there was an equal division in clusters. For example the black cluster seemed to have same numebr of points as the green and red cluster. In the single linkage method most of the data pointa are i the black cluster. 
+# (c)
+h_avg_tree = hclust(d,method = "average")
+clust_avg_labels = cutree(h_avg_tree,3)
+clust_avg_kmeans = kmeans(hotels.std[,features],3)
+clust_avg_labels_kmeans = clust_avg_kmeans$cluster
+
+boxplot(hotels.std$Average_Score~clust_avg_labels)
+
+
+#The average score for the hotels vary quite a lot has group 1 has a huge range of scores. Group 2 has a smaller range but has the hughest average score. Group 3 has the second largest range but has the lowest average score.Both group 1 and 3 have outliers that have very bad scores.
+
+```
