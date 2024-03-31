@@ -1,0 +1,88 @@
+
+```{r}
+# Problem 0
+cba = read.table("cba_admissions_1999.txt", sep = "\t", header = T, quote = "", allowEscapes = T)
+```
+
+Problem 1.
+```{r}
+# 1(a)
+sum(cba$from_PA == 1)
+
+# 1(b)
+cba_pa = cba[cba$from_PA == 1,]
+cba_women_pa = cba_pa[cba_pa$Female == 1,]
+
+nrow(cba_women_pa) / nrow(cba_pa)
+"-/////////" 
+cba_not_pa = cba[cba$from_PA == 0,]
+cba_women_not_pa = cba_not_pa[cba_not_pa$Female==1,]
+
+nrow(cba_women_not_pa)/nrow(cba_not_pa)
+
+# 1(c)
+mean(cba_women_pa$Max_Test_Score)
+sd(cba_women_pa$Max_Test_Score)
+
+mean(cba_women_not_pa$Max_Test_Score)
+sd(cba_women_not_pa$Max_Test_Score)
+# 1(d)
+
+par(mfrow = c(1,2))
+hist(cba_women_pa$Max_Test_Score, xlab = "SAT Score", ylab = "Frequency", main = "SAT Test Scores of Women from PA in CBA")
+hist(cba_women_not_pa$Max_Test_Score, xlab = "SAT Score", ylab = "Frequency", main = "SAT Test Scores of Women not from PA in CBA")
+
+# 1(e)
+boxplot(cba$Max_Test_Score ~ cba$from_PA,xlab = "From PA", ylab = "SAT Test Score", main = "SAT test scores of Women from/not from PA in CBA")
+
+
+```
+
+Problem 2.
+```{r}
+# 2(a)
+cba_paid_deposit = cba[cba$paiddeposit == 1,]
+
+sum(cba$paiddeposit == 1)
+sum(cba$paiddeposit == 1)/nrow(cba)
+
+# 2(b)
+cba_deposit_scholarship = 
+cba_paid_deposit[cba_paid_deposit$scholarship_yes_no==1,]
+
+sum(cba_paid_deposit$scholarship_yes_no==1)/nrow(cba_paid_deposit)
+# 2(c)
+cba_paid_deposit_alumni = subset(cba_paid_deposit, father_alumni == 1 | mother_alumni == 1) 
+
+nrow(cba_deposit_alumni)/nrow(cba_paid_deposit)
+```
+
+Problem 3.
+```{r}
+# 3(a)
+clean_SAT= subset(cba, !is.na(cba$SAT_math))
+clean_SAT = subset(cba,!is.na(cba$SAT_verbal))
+
+# 3(b)
+plot(clean_SAT$SAT_math~clean_SAT$SAT_verbal,xlab = "SAT Verbal Score",ylab = "SAT Math Score", main = "Math and Verbal scores of Students in CBA",pch = 17)
+# 3(c)
+clean_SAT_PA = clean_SAT[clean_SAT$from_PA == 1,]
+clean_SAT_not_PA = clean_SAT[clean_SAT$from_PA == 0,]
+
+plot(clean_SAT_PA$SAT_math~clean_SAT_PA$SAT_verbal,xlab = "SAT Verbal Score",ylab = "SAT Math Score", main = "Math and Verbal scores of Students in CBA",col = "blue",pch = 17,ylim = c(400,800),xlim = c(400,800))
+par(new = T)
+plot(clean_SAT_not_PA$SAT_math~clean_SAT_not_PA$SAT_verbal,xlab = "SAT Verbal Score",ylab = "SAT Math Score", main = "Math and Verbal scores of Students in CBA",col = "red",pch = 17,ylim = c(400,800),xlim = c(400,800))
+"Doesn't seem to be a very strong correlation between SAT Scores and being out of state "
+
+# 3(d)
+clean_SAT_deposit = clean_SAT[clean_SAT$paiddeposit == 1,]
+clean_SAT_no_deposit = clean_SAT[clean_SAT$paiddeposit ==0,]
+
+
+plot(clean_SAT_deposit$SAT_math~clean_SAT_deposit$SAT_verbal,xlab = "SAT Verbal Score",ylab = "SAT Math Score", main = "Math and Verbal scores of Students in CBA",col = "blue",pch = 17,ylim = c(400,800),xlim = c(400,800))
+par(new = T)
+plot(clean_SAT_no_deposit$SAT_math~clean_SAT_no_deposit$SAT_verbal,xlab = "SAT Verbal Score",ylab = "SAT Math Score", main = "Math and Verbal scores of Students in CBA",col = "red",pch = 17,ylim = c(400,800),xlim = c(400,800))
+
+"Does seem to be some correlation between paying deposit and SAT Score"
+```
+
