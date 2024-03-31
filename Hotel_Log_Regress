@@ -1,0 +1,123 @@
+
+```{r}
+hotels = read.table("hotel_reviews.txt", header = T)
+```
+
+# Problem 1
+```{r}
+# (a)
+hotels.std =hotels[hotels$Total_Number_of_Reviews>= 50,]
+
+hotels.std$lat = scale(hotels.std$lat)
+hotels.std$lng = scale(hotels.std$lng)
+hotels.std$Average_Score = scale(hotels.std$Average_Score)
+hotels.std$Total_Number_of_Reviews = scale(hotels.std$Total_Number_of_Reviews)
+hotels.std$Negative_Word_Counts = scale(hotels.std$Negative_Word_Counts)
+hotels.std$Positive_Word_Counts = scale(hotels.std$Positive_Word_Counts)
+hotels.std$Number_of_Reviews_by_Reviewer = scale(hotels.std$Number_of_Reviews_by_Reviewer)
+hotels.std$Proportion_Postive = scale(hotels.std$Proportion_Postive)
+hotels.std$Proportion_Negative = scale(hotels.std$Proportion_Negative)
+
+
+# (b)
+quality_hotel = rep(0,nrow(hotels.std))
+quality_hotel[hotels.std$Average_Score>1]=1
+hotels.std =data.frame(hotels.std,quality_hotel)
+# (c)
+library(gpairs)
+gpairs(hotels.std[,c("Proportion_Postive","Proportion_Negative", "Negative_Word_Counts","Positive_Word_Counts")])
+# there seems to be many strong linear relationships and this is expected
+```
+
+
+# Problem 2
+```{r}
+# (a)
+hotels.std = hotels.std[sample(1:nrow(hotels.std)), ]
+training = hotels.std[0:736,]
+testing = hotels.std[737:1473,]
+# (b)
+ quality_model = glm(data = hotels.std, quality_hotel ~ Negative_Word_Counts + Positive_Word_Counts,family="binomial")
+ 
+# P(Quality Hotel) =  exp(-2.77749 - (1.69815*Negative_Word_Counts) + (0.87692 *Positive_Word_Counts)) 
+# (c)
+#exp(-2.77749 - (1.69815*-1) + (0.87692 *1)) = 0.8167518
+# (d)
+Threshold=.5
+predicted_probs = predict.glm(quality_model,testing,type = "response")
+predictions = predicted_probs > Threshold
+ 
+table(testing$quality_hotel,predictions)
+
+#   predictions
+#    FALSE TRUE
+#  0   623   21
+#  1    56   37
+ 
+# Sensitivity: 37/93 = 0.3978495
+# Specificity:623/644 = .967
+
+# (e)
+
+Threshold=.2
+predicted_probs = predict.glm(quality_model,testing,type = "response")
+predictions = predicted_probs > Threshold
+ 
+table(testing$quality_hotel,predictions)
+
+# Sensitivity (.2): 68/93 =.73
+# Specificity (.2): 623/644 = .967
+
+
+Threshold=.8
+predicted_probs = predict.glm(quality_model,testing,type = "response")
+predictions = predicted_probs > Threshold
+ 
+table(testing$quality_hotel,predictions)
+
+# Sensitivity (.8): 5/93 = .054
+# Specificity (.8):640/644 = .994
+
+# Comment: As threshold decreases sensitivity goes up and specificity decreases and vice versa. However Sensitivity seems to vary more than specificiity. 
+
+# (f)
+ROC = roc(hotels.std$quality_hotel,fitted(quality_model))
+
+ROC$aucplot
+#ROC_auc = .8792
+
+
+# (g)
+
+```
+
+# Helpful Function from the Lecture 19 Notebook. Hit the play button on the block (green arrow) to load function into scope.
+```{r}
+# This code will loop through all the elements fitted on the training set, compute the prediction accuracy, then keep the best one.
+
+find_best_threshold <- function(log_reg_model, training_set, labels){
+  # This function will compute the best threshold for log_reg, chosen up to .01 granularity.
+  ## log_reg_model - This should be your trained logistic regression model.
+  ## training_set - This should be your training_set for the logistic regression.
+  ## true_labels - This should be your vector of class labels for the training_set.
+  
+  fitted_vals = fitted(log_reg_model)
+  best_acc = 0
+  best_T = 0
+  for(i in 1:nrow(training_set)){
+    curr = fitted_vals[i]
+    predicted_labels = rep(0, nrow(training_set))
+    predicted_labels[fitted_vals >= curr] = 1
+    
+    curr_tab = table(predicted_labels, labels)
+    
+    curr_acc = sum(diag(curr_tab)) # Special command
+    if(curr_acc > best_acc){
+      best_T = curr
+      best_acc = curr_acc
+    }
+  }
+  return(c(best_T, best_acc))
+}
+```
+
