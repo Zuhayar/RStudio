@@ -1,0 +1,219 @@
+install.packages("foreign")
+install.packages("dplyr")
+
+library(foreign)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(dplyr)
+
+
+
+### 1. READ AND EXPLORE OUR DATASET:
+
+# We'll use a new function, from the package "foreign", to read arff files:
+
+dat = read.arff("5year.arff")
+
+# Let us take a quick look at the data structure:
+
+str(dat)
+
+# We have 64 financial indicators (independent variables) and one factor ("class")
+# that takes the value 1 if the company went bankrupt within a 5-year period and 0 
+# otherwise (i.e., our categorical dependent variable).
+
+# We can also take a quick look at the values that our variables take:
+
+summary(dat)
+
+# While it's hard to get a good sense of the data, given how many variables there
+# are, what do you notice?
+
+# A: there are clearly some outliers! This should not really affect the performance
+# of our tree, but it would be good to keep in mind if we wanted to visualize our data.
+
+# There are also some missing values. rpart has its own algorithm to deal with
+# them, but just so we don't work with a black box, let's remove all observations
+# that have some missing value from consideration:
+
+dat = na.omit(dat)
+
+# The next step is not necessary, but to avoid confusions later,
+# we will rename our dependent variable to "bankrupt"
+colnames(dat)
+dat = rename(dat, bankrupt = class)
+# Note: the syntax of the rename function is rename(dataset_name, new_var=old_var).
+# It comes from the dplyr package, so it will not work if you don't load
+# that package.
+
+# Another important thing to know at this point is the proportion of observations
+# where we have bankruptcy (bankrupt=1) and no-bankruptcy (bankrupt=0):
+
+table(dat$bankrupt)/nrow(dat)
+
+# It's always good to keep this in mind when building our tree. For example,
+# this can help us inform our decision about the parameter "minbucket".
+
+
+
+### 2. SPLIT OUR DATASET INTO TRAINING AND TEST SET:
+
+# Since we have a categorical dependent variable, we'll use the function 
+# sample.split, as we did for logistic regression. Remember, we use this function 
+# because we want a similar distribution of the dependent variable
+# in the training and test sets.
+
+# We'll leave 80% of our observations in the training set. Since there is randomness 
+# involved in this process, we begin by setting the seed equal to 12.
+
+set.seed(12, sample.kind = "Rejection")
+spl = sample.split(dat$bankrupt, SplitRatio=0.8)
+
+# Using spl (a vector of TRUE and FALSE values), we can split our data:
+
+train.dat = dat[spl==TRUE,]
+test.dat = dat[spl==FALSE,]
+
+
+
+### 3. BUILD OUR FIRST CLASSIFICATION TREES:
+
+# In order to build a simple classification tree, we use the function "rpart":
+
+# rpart (formula, data, method="class", minbucket, cp)
+
+# method="class" tells the function rpart that we want to build a classification 
+# tree, as opposed to a regression tree.
+
+# Note: this is why we changed the name of our dependent variables, to
+# avoid any confusions :)
+
+# Let us define a variable with the minimum node size that we want to consider,
+# i.e., our minbucket. In this case, we'll use 10 (it's small for the size
+# of the dataset, but the data is pretty imbalanced: there are not that many 1s)
+
+mb = 10
+
+# We begin by building a classification tree with cp = 0, which we will
+# use for cross-validation purposes:
+
+# NOTE: since there is randomness in the cross-validation process, we will
+# use set.seed(12) before building our tree 
+
+set.seed(12, sample.kind = "Rejection")
+tree0 = rpart(bankrupt ~ ., 
+              data=train.dat, 
+              method="class",
+              minbucket = mb,
+              cp=0)
+plotcp(tree0)
+
+# In this case, we notice that cp=0.037 (size of tree = 3) gives us the best
+# cross-validation error. In addition, it is not too complex, so we'll consider
+# this value to build our tree.
+
+# NOTE: the first value of cp, from left to right, that falls under the dotted
+# line is "Inf" - the first one! However, this tree of size 1 (that is,
+# a single-node tree without any splits) would give us either a sensitivity
+# or specificity of 0, since it would always predict only one value. I suggest
+# that you exclude the very first value from the "first cp value under the 
+#  dotted line" rule of thumb for classification trees. (Part of the problem
+# is that the x-val error is based on 1 - Accuracy, and we know that Accuracy
+# is not, usually, the only thing that we care about).
+
+
+# To look at similar information as the one behind the cross-validation 
+# graph, you can also use the function "printcp":
+
+printcp(tree0)
+
+# Note: printcp shows the MINIMUM cp for which you get the size of the tree
+# given by "nsplit"; plotcp, on the other hand, shows the MEDIAN of the cp 
+# values for which you get that size of tree. "xerror" is the 
+# cross-validation error, relative to the error made on the entire training set 
+# when considering a single-node tree (which is the value on the y-axis
+# of the plotcp graph). 
+
+# IMPORTANT: There was a typo in the RegTree code - it should have been 
+# "xerror" instead of "rel error" in the explanation of printcp.
+# "rel error" is not very relevant for cross-validation.
+
+# Let us build and visualize the corresponding tree:
+
+tree1 = rpart(bankrupt ~ ., 
+              data=train.dat, 
+              method="class",
+              minbucket = mb,
+              cp=0.037)
+prp(tree1)
+
+
+# Let us look at the dataset information on the UCI website (top of the code).
+# Does this model make sense?
+
+# Attr27: profit on operating activities / financial expenses
+# Attr46: (current assets - inventory) / short-term liabilities
+# The second one is the same variable we saw on Tuesday :)
+
+# In words, the model predicts that companies with low profits 
+# (in particular, fairly negative), and low liquidity
+# is more likely to go bankrupt within the next 5 years. 
+
+
+
+### 4. PREDICTING VALUES AND EVALUATING OUR MODEL
+
+# As before, we can use the function "predict" to compute predicted
+# values on the test set, as follows:
+
+test.dat$pred = predict(tree1, newdata = test.dat, type="class")
+
+# Note that we need to specify that we want type="class" 
+# to get the predicted value (0/1).
+
+# With this, we can compute our confusion matrix...
+
+ConfMat = table(test.dat$bankrupt,test.dat$pred)
+ConfMat
+
+# ... and some basic performance measures:
+
+# Accuracy:
+(583+3)/nrow(test.dat)
+
+# Sensitivity:
+3/(3+17)
+
+# Specificity:
+583/(583+3)
+
+# What do you think? 
+
+# Why do you think that we get such a low sensitivity?
+
+# A: there are many more 0s than 1s, so the model is "happy" predicting
+# 0s very often (it is easy to be correct if you predict 0). This is at least
+# in part due to the fact that what we have seen so far is the simplest version
+# of classification trees: it assumes that both mistakes (coming from False
+# Positives and False Negatives) are equally bad. This is rarely true in practice,
+# though - we'll see an extension next week.
+
+
+
+### 5. NICER TREES
+
+# Let's consider our initial tree, tree1. We can also plot it
+# in a slightly fancier way using "rpart.plot":
+
+# In all cases: color scale depends on fraction of 0 (darker blue) and 1 (darker green)
+
+rpart.plot(tree1)              # Fraction of 1s in each node; percentage of total obs.
+rpart.plot(tree1, extra=1)     # Number of 0s and 1s in each node
+rpart.plot(tree1, extra=2)     # Number of correct classif. and total number of obs. in a node
+rpart.plot(tree1, extra=3)     # Misclassification rate (wrong class / total in node)
+rpart.plot(tree1, extra=4)     # Probability of each class in a node
+rpart.plot(tree1, extra=101)   # Number of 0s and 1s in each node + % of obs in node
+ 
+# For more information and options:
+?rpart.plot
