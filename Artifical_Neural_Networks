@@ -1,0 +1,286 @@
+
+install.packages("neuralnet")  # main package for neural networks
+library("neuralnet")
+
+dat<-read.csv("BostonDataset.csv")
+
+# What's in it? What are the variable types?
+str(dat)
+
+# CMEDV  median values of owner-occupied housing in USD 1000
+# CRIM  per capita crime
+# ZN  proportions of residential land zoned for lots over 25000 sq. ft per town (constant for all Boston tracts)
+# INDUS  proportions of non-retail business acres per town (constant for all Boston tracts)
+# CHAS a factor with levels 1 if tract borders Charles River; 0 otherwise
+# NOX  nitric oxides concentration (parts per 10 million) per town
+# RM  average number of rooms per dwelling
+# AGE  proportions of owner-occupied units built prior to 1940
+# DIS  weighted distances to five Boston employment centres
+# RAD  an index of accessibility to radial highways per town (constant for all Boston tracts)
+# TAX a numeric vector full-value property-tax rate per USD 10,000 per town (constant for all Boston tracts)
+# PTRATIO  pupil-teacher ratios per town (constant for all Boston tracts)
+
+# In this case, we only have numeric variables. If we had categorical variables,
+# then we would need to create dummy variables for both the independent
+# and dependent variables (I will post a separate example with this type of 
+# variable and a categorical dependent variable later in the semester).
+
+# Our dependent variable will be "CMEDV": the median value of homes, in $1,000s
+
+
+# Note: how would we clean our dataset if we had missing values?
+dat<-na.omit(dat)
+# We don't have missing values in this case, but you can get an 
+# error if you did - so you should always check and adress the issue
+# if needed.
+
+
+
+### 1. SPLITTING OUR DATASET: A NEW APPROACH
+
+# One of the best ways to try out different parameter values
+# (in particular, in the case of ANN, different network configurations)
+# is by doing cross-validation on the training set. 
+# Unfortunately, and unlike other methods we've studied before,
+# this is slightly more difficult to do on neural networks, as you need another
+# package and/or functions to perform this. (If you want to learn more about this,
+# you can look at the package "caret").
+
+# Instead, we'll use a simplified version of the same idea with a training + 
+# validation sets approach; that is, we'll first split our
+# data in 2 as usual, but then we'll further split the bigger set into
+# training and validation sets. We'll use the validation set to 
+# evaluate the performance that we obtain when we try out different 
+# configurations of our network (which we build on the training set).
+
+# Step 1: split dataset into intermediate and test sets (we'll leave 80% of
+# the rows in the intermediate dataset):
+set.seed(123, sample.kind="Rejection")
+spl = sample(nrow(dat), 0.8*nrow(dat)) 
+intermediate = dat[spl,]
+test = dat[-spl,]
+
+# Step 2: split the intermediate set into training and validation sets.
+# We'll leave 2/3 of the intermediate set (so more than 50% of all data) for training
+set.seed(123, sample.kind="Rejection")
+spl2 = sample(nrow(intermediate), 2/3*nrow(intermediate)) 
+train = intermediate[spl2,]
+valid = intermediate[-spl2,]
+
+
+
+### 2. PRE-PROCESS DATA FOR ARTIFICIAL NEURAL NETWORK (ANN)
+
+# Before we run our ANN, it is better to pre-process the data by
+# scaling all observations (for example, to be in the range [0,1]).
+# Doing this is not strictly necessary, but it typically works better.
+
+# We first compute the min and max of each variable IN THE TRAINING SET using 
+# the R function "apply":
+maxVals = apply(train, 2, max)
+minVals = apply(train, 2, min)
+
+# The first argument inside "apply" corresponds to the dataset; the second argument
+# indicates whether you want to apply a function to each row (1) or column (2);
+# and the last argument is the function that you want to apply to each row/column.
+# Therefore, maxVals applies the function "max" to each column (#2) in train.
+
+# So what do we have, for example, in maxVals?
+maxVals
+
+# With the above, we can proceed to scale all observations with the function
+# "scale", and store them as scaled versions of each dataset:
+
+scaled_train = as.data.frame(scale(train, center = minVals, 
+                                scale = maxVals - minVals))
+
+scaled_valid = as.data.frame(scale(valid, center = minVals, 
+                                     scale = maxVals - minVals))
+
+scaled_test = as.data.frame(scale(test, center = minVals, 
+                                     scale = maxVals - minVals))
+
+# The function "scale" works by column, subtracting the values given by "center"
+# and dividing by the values in "scale".
+
+# Let's check that the scaling process worked:
+summary(scaled_train)
+
+# Note: it's OK that you won't have values between 0 and 1 in your validation
+# and test sets.
+
+
+
+
+
+
+### 3. BUILD AND EVALUATE OUR FIRST NEURAL NETWORK 
+
+# We're now ready to build our first neural network! 
+# The main formula that we use to do this is "neuralnet," which works as follows:
+
+# neuralnet(formula, data, hidden=[integer/vector], linear.output=TRUE)
+
+# "neuralnet" allows the user to select more parameters, but we'll see some of those
+# additional options later. For now, what you need to know is that:
+
+# (i) "hidden" is where you specify the number of hidden layers in your ANN, as well
+# as the number of nodes in each layer. If you enter a vector, then the first value
+# will correspond to the number of nodes in the first hidden layer, the second value
+# captures the number of nodes in the second hidden layer, and so on. If you enter
+# only one value (instead of a vector), then it knows that you're asking for a single
+# hidden layer; and
+
+# (ii) linear.output=TRUE is optional (the default is TRUE). By default, the activation
+# function in the entire network is logistic/sigmoidal. By setting
+# linear.output=TRUE, we ask the neural network to instead use a linear activation
+# function in the output layer. It is recommended that you set this to TRUE
+# for a regression problem, and to FALSE for a classification problem (in the
+# latter case, the dependent variable can only be 0 or 1, so it's preferable
+# to use the logistic activation function, as it gives you outputs that are
+# restricted to be between 0 and 1).
+
+# Since there is
+# some randomness in the optimization process, we first set a seed.
+# We'll begin by trying out 2 hidden layers, with 4 and 2 nodes each.
+
+set.seed(123, sample.kind="Rejection")
+neural = neuralnet(CMEDV~., data = scaled_train, hidden=c(4,2), 
+                   linear.output=TRUE)
+
+# But how do we know that we used the right parameters for "neuralnet" above?
+
+
+
+
+### 4. TRYING OUT DIFFERENT PARAMETERS ON THE VALIDATION SET
+
+# First, we'll see how our model (with 2 hidden layers - with 4 and 2 nodes each)
+# performed on the validation set. We'll later repeat the process with different
+# parameters.
+
+# Let's begin by visualizing the network using the function plot:
+plot(neural)
+
+# Note that the bias terms next to each node, in blue, are represented as
+# weights coming from "fictitious" nodes with output=1
+# (blue nodes at the top of the graph)
+
+# To use our neural network for predictions, we will use the "predict" function
+# as usual:
+pred.valid = predict(neural, newdata=scaled_valid)
+
+# Let's take a look at the predicted values with the "summary" function:
+summary(pred.valid)
+
+# What's going on? Does this mean that the median value of houses in Boston
+# ranges between $88 and $990 (the original values were in 1,000s)?
+
+# What happens is that we need to re-scale the predicted values!
+# To do this, we multiply the predicted values by the difference between
+# the min and max values in the training set; and then add the minimum.
+
+# To simplify this, we'll store the minimum and maximum values of CMEDV in
+# the training set in new variables, m and M:
+m = min(train$CMEDV)
+M = max(train$CMEDV)
+
+valid.pred.nn = (pred.valid * (M - m)) + m
+
+summary(valid.pred.nn)
+
+# (Reminder: the data is from 1978)
+
+# OK, so how does our model perform on the validation set? What OSR2 do we get?
+# To answer this question, we compare the re-scaled (i.e., in the original units)
+# predicted values of CMEDV against NON-SCALED, original values of CMEDV
+# in the validation set. 
+
+# We'll compute the OSR2, so we need to start by computing the average of CMEDV
+# in the NON-SCALED (i.e., the original) training set:
+
+train.mean = mean(train$CMEDV)
+
+# With that, we're ready to compute OSR2 as we've always done (but this time
+# on the validation set):
+
+SSE.valid = sum((valid.pred.nn - valid$CMEDV)^2)
+SST.valid = sum((train.mean - valid$CMEDV)^2)
+
+# Finally, the OSR2 is equal to:
+1 - SSE.valid/SST.valid
+
+
+# Then, we can repeat the process above with any number of different parameters,
+# for example:
+
+set.seed(123, sample.kind="Rejection")
+neural = neuralnet(CMEDV~., data = scaled_train, hidden=c(8), 
+                   linear.output=TRUE)
+
+set.seed(123, sample.kind="Rejection")
+neural = neuralnet(CMEDV~., data = scaled_train, hidden=c(2,2,2), 
+                   linear.output=TRUE)
+
+set.seed(123, sample.kind="Rejection")
+neural = neuralnet(CMEDV~., data = scaled_train, hidden=c(4,2), 
+                   linear.output=TRUE, threshold=0.04)
+
+# Note: "threshold" controls the stopping point for the optimization. By default, it is
+# equal to 0.01, and by setting it to 0.04, we are allowing it to stop earlier.
+# Similarly, "stepmax" --which we didn't modify and is by default 10,000-- 
+# controls the maximum number of iterations that you allow your neural network to
+# run. If you get an error saying that the neural net did not converge, you can try 
+# increasing this parameter.
+
+# What if we wanted to try using a different activation function?
+# This can be done by changing the value of the parameter "act.fct".
+
+# To learn more about other options to use with "neuralnet":
+?neuralnet
+
+# In this case, it turns out that the last set of parameters performed
+# best, so we'll use them to build our final model.
+
+
+
+### 5. EVALUATING YOUR FINAL MODEL ON THE TEST SET
+
+# Once you've settled on your "favorite" model (e.g., the one that gave us the
+# best performance on the validation set), you should REBUILD the neural network
+# with our selected parameters, but using ALL non-test-set data. That is,
+# building the model on both the (scaled) training and validation set data.
+# To combine two datasets, with one on top of the other one, we
+# can use the function "rbind" (binds by row, as opposed to by column):
+
+scaled_nonTest = rbind(scaled_train, scaled_valid)
+
+set.seed(123, sample.kind="Rejection")
+neural_final = neuralnet(CMEDV~., data = scaled_nonTest, hidden=c(4,2), 
+                         linear.output=TRUE, threshold=0.04)
+
+
+# Then we can finally evaluate the performance of the model on the test set by
+# repeating the steps we followed when evaluating the model on the validation 
+# set:
+
+pred.test = predict(neural_final, scaled_test)
+
+test.pred.final = pred.test * (M - m) + m
+
+# We also need to compute the average of CMEDV (our dependent variable)
+# in the intermediate (training + validation) set to compute our 
+# OSR2:
+inter.mean = mean(intermediate$CMEDV)
+
+# With that, we're ready to compute OSR2 as we've always done (on the test set):
+
+SSE.test = sum((test.pred.final - test$CMEDV)^2)
+SST.test = sum((inter.mean - test$CMEDV)^2)
+
+# Finally, the OSR2 is equal to:
+1 - SSE.test/SST.test
+
+# Not to complicate today's code more than necessary, I didn't include a benchmark.
+# But I ran a linear regression with the same data and you get OSR2 = 0.715,
+# so our neural network gave us, in this case, only a small improvement.
