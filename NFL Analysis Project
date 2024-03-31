@@ -1,0 +1,307 @@
+
+```{r}
+setwd("~/Downloads")
+data <- read.csv(file = "nfl_team_stats_2002-2022.csv", header = TRUE, sep = ",")
+```
+
+```{r}
+#changing data into appropriate data types so it can be analyzed 
+
+#removing games that were tied
+data = data[data$score_away != data$score_home,]
+
+#changing the possession time to numeric data so it can be analyzed 
+library(stringr)
+data$possession_away <- str_replace_all(data$possession_away,':','.')
+data$possession_home <- str_replace_all(data$possession_home,':','.')
+data$possession_away = as.numeric(data$possession_away)
+data$possession_home = as.numeric(data$possession_home)
+#---------------------------------------------------------------------------------------------------------------------------------------
+#splitting third down data as the original data table just gives it as character and need to separate third downs converted and third downs attempted 
+#third down conversions 
+data$third_downs_away = as.character(data$third_downs_away)
+third_down_conversion_away = rep(0,nrow(data))
+third_down_conversion_away = sub("-.*", "", data$third_downs_away)
+third_down_conversion_away = as.numeric(third_down_conversion_away)
+data = data.frame(data,third_down_conversion_away)
+
+data$third_downs_home = as.character(data$third_downs_home)
+third_down_conversion_home = rep(0,nrow(data))
+third_down_conversion_home = sub("-.*", "", data$third_downs_home)
+third_down_conversion_home = as.numeric(third_down_conversion_home)
+data = data.frame(data,third_down_conversion_home)
+
+#third down attempts 
+third_down_attempts_away = rep(0,nrow(data))
+third_down_attempts_away = sub(".*-", "", data$third_downs_away) 
+third_down_attempts_away = as.numeric(third_down_attempts_away)
+data = data.frame(data,third_down_attempts_away)
+
+third_down_attempts_home = rep(0,nrow(data))
+third_down_attempts_home = sub(".*-", "", data$third_downs_home) 
+third_down_attempts_home = as.numeric(third_down_attempts_home)
+data = data.frame(data,third_down_attempts_home)
+#---------------------------------------------------------------------------------------------------------------------------------------
+#splitting fourth down data as the original data table just gives it as character and need to separate third downs converted and third downs attempted 
+#fourth down conversions
+data$fourth_downs_away = as.character(data$fourth_downs_away)
+fourth_down_conversion_away = rep(0,nrow(data))
+fourth_down_conversion_away = sub("-.*", "", data$fourth_downs_away)
+fourth_down_conversion_away = as.numeric(fourth_down_conversion_away)
+data = data.frame(data,fourth_down_conversion_away)
+
+data$fourth_downs_home = as.character(data$fourth_downs_home)
+fourth_down_conversion_home = rep(0,nrow(data))
+fourth_down_conversion_home = sub("-.*", "", data$fourth_downs_home)
+fourth_down_conversion_home = as.numeric(fourth_down_conversion_home)
+data = data.frame(data,fourth_down_conversion_home)
+
+#fourth down attempts 
+fourth_down_attempts_away = rep(0,nrow(data))
+fourth_down_attempts_away = sub(".*-", "", data$fourth_downs_away) 
+fourth_down_attempts_away = as.numeric(fourth_down_attempts_away)
+data = data.frame(data,fourth_down_attempts_away)
+
+fourth_down_attempts_home = rep(0,nrow(data))
+fourth_down_attempts_home = sub(".*-", "", data$fourth_downs_home) 
+fourth_down_attempts_home = as.numeric(fourth_down_attempts_home)
+data = data.frame(data,fourth_down_attempts_home)
+#---------------------------------------------------------------------------------------------------------------------------------------
+#splitting completion data into completions and passes attempted
+#passes completed 
+data$comp_att_away = as.character(data$comp_att_away)
+completions_away = rep(0,nrow(data))
+completions_away = sub("-.*", "", data$comp_att_away)
+completions_away = as.numeric(completions_away)
+data = data.frame(data,completions_away)
+
+data$comp_att_home = as.character(data$comp_att_home)
+completions_home = rep(0,nrow(data))
+completions_home = sub("-.*", "", data$comp_att_home)
+completions_home = as.numeric(completions_home)
+data = data.frame(data,completions_home)
+
+#passes attempted
+passes_att_away = rep(0,nrow(data))
+passes_att_away = sub(".*-", "", data$comp_att_away)
+passes_att_away = as.numeric(passes_att_away)
+data = data.frame(data,passes_att_away)
+
+passes_att_home = rep(0,nrow(data))
+passes_att_home= sub(".*-", "", data$comp_att_home)
+passes_att_home = as.numeric(passes_att_home)
+data = data.frame(data,passes_att_home)
+
+#--------------------------------------------------------------------------------------------------------------------------------------
+#changing the sacks data as I only want sacks and not sack yards and also making the data numeric 
+data$sacks_away = sub("-.*", "", data$sacks_away)
+data$sacks_away = as.numeric(data$sacks_away)
+
+data$sacks_home = sub("-.*", "", data$sacks_home)
+data$sacks_home = as.numeric(data$sacks_home)
+#--------------------------------------------------------------------------------------------------------------------------------------
+#changing the penalties data as I only want penalty yards and not total penalties
+names(data)[28]<-paste("penalty_yards_away")
+names(data)[29]<-paste("penalty_yards_home")
+
+data$penalty_yards_away = sub(".*-", "", data$penalty_yards_away)
+data$penalty_yards_home = sub(".*-", "", data$penalty_yards_home)
+
+data$penalty_yards_away = as.numeric(data$penalty_yards_away)
+data$penalty_yards_home = as.numeric(data$penalty_yards_home)
+#--------------------------------------------------------------------------------------------------------------------------------------
+#splitting redzone data to redzone touchdowns and trips to redzone
+data$redzone_away = as.character(data$redzone_away)
+redzone_td_away = rep(0,nrow(data))
+redzone_td_away = sub("-.*", "", data$redzone_away)
+redzone_td_away = as.numeric(redzone_td_away)
+data = data.frame(data,redzone_td_away)
+
+data$redzone_home = as.character(data$redzone_home)
+redzone_td_home = rep(0,nrow(data))
+redzone_td_home = sub("-.*", "", data$redzone_home)
+redzone_td_home = as.numeric(redzone_td_home)
+data = data.frame(data,redzone_td_home)
+#redzone drives
+redzone_drives_away = rep(0,nrow(data))
+redzone_drives_away = sub(".*-", "", data$redzone_away)
+redzone_drives_away = as.numeric(redzone_drives_away)
+data = data.frame(data,redzone_drives_away)
+
+redzone_drives_home = rep(0,nrow(data))
+redzone_drives_home = sub(".*-", "", data$redzone_home)
+redzone_drives_home = as.numeric(redzone_drives_home)
+data = data.frame(data,redzone_drives_home)
+```
+
+
+```{r}
+#removing data  I don't need anymore because I extracted the data I need and put it in other columns
+data = data[,-4:-9]
+data = data[,-10:-11]
+data = data[,-22:-23]
+#-------------------------------------------------------------------------------------------------------------------------------------------
+#adding a turnover margin column
+turnover_margin_away = rep(0,nrow(data))
+turnover_margin_away = data$turnovers_away - data$turnovers_home
+turnover_margin_home = rep(0,nrow(data))
+turnover_margin_home = data$turnovers_home - data$turnovers_away
+data = data.frame(data,turnover_margin_away)
+data = data.frame(data,turnover_margin_home)
+
+##adding a column to show which team won the game 
+win_away = rep(0,nrow(data))
+win_away[data$score_away > data$score_home] = 1
+data = data.frame(data,win_away)
+win_home = rep(0,nrow(data))
+win_home[data$score_home > data$score_away] = 1
+data = data.frame(data,win_home)
+
+#-------------------------------------------------------------------------------------------------------------------------
+#data for part 2
+data_home = data
+data_away = data
+rushing_offense_home = rep(0,nrow(data_home))
+#--------------------------
+#variables for module 3
+data_home.std = data
+data_home.std[,4:9] = data.frame(scale(data[,4:9]))
+data_home.std[,12:13] = data.frame(scale(data[,12:13]))
+data_home.std[,20:21] = data.frame(scale(data[,20:21]))
+data_home.std[,26:29] = data.frame(scale(data[,26:29]))
+data_home.std[,38:41] = data.frame(scale(data[,38:41]))
+
+data_away.std = data
+data_away.std[,4:9] = data.frame(scale(data[,4:9]))
+data_away.std[,12:13] = data.frame(scale(data[,12:13]))
+data_away.std[,20:21] = data.frame(scale(data[,20:21]))
+data_away.std[,26:29] = data.frame(scale(data[,26:29]))
+data_away.std[,38:41] = data.frame(scale(data[,38:41]))
+
+
+
+#Scaling variables
+
+data[,4:9] = data.frame(scale(data[,4:9]))
+data[,12:13] = data.frame(scale(data[,12:13]))
+data[,20:21] = data.frame(scale(data[,20:21]))
+data[,26:29] = data.frame(scale(data[,26:29]))
+data[,38:41] = data.frame(scale(data[,38:41]))
+
+
+```
+
+```{r}
+#method 1
+
+#model selection away_wins 
+
+library(leaps)
+best_model_away = regsubsets(data=data,win_away~passing_yards_away+rushing_yards_away+sacks_away+fumbles_away+int_away+turnover_margin_away+penalty_yards_away+completions_away+def_st_td_away+possession_away+third_down_conversion_away+fourth_down_conversion_away+redzone_td_away+score_away)
+summary(best_model_away)
+#The 5 best variables for a multiple linear model for win_away are = score_away + turnover_margin_away + possession_away +completions_away+ sacks_away
+
+win_away_model = lm(win_away ~ score_away + turnover_margin_away + possession_away + completions_away+sacks_away,data = data)
+summary(win_away_model)
+# win_away ~  0.520854  + (0.177943*score_away) + (turnover_margin_away * -0.066493) + (possession_away  * 0.131661)  + (completions_away*-0.096597) + (sacks_away * -.034941)
+
+
+
+#model selection home_wins
+best_model_home= regsubsets(data=data,win_home~passing_yards_home+rushing_yards_home+sacks_home+fumbles_home+int_home+turnover_margin_home+penalty_yards_home+def_st_td_home+possession_home+third_down_conversion_home+fourth_down_conversion_home+redzone_td_home+score_home+completions_home)
+summary((best_model_home))
+#The 5 best variables for a mulitple linear model for win_home are = score_home + turnover_margin_home + possession_home + completions_home + sacks_home
+
+win_home_model = lm(win_home ~ score_home + turnover_margin_home + possession_home + completions_home + sacks_home,data = data)
+summary(win_home_model)
+#win_home ~  0.638088+ (0.0.161229*score_home) + (turnover_margin_home * --0.069433 ) + (possession_home  * 0.13649) + (-0.085707 * completions_home) +(sacks_home * -0.034853)
+
+
+win_features_away = c("score_away", "turnover_margin_away", "possession_away","completions_away","sacks_away")
+pairs(data[,win_features_away],col = as.factor(win_away),main = "Win_away")
+
+win_features_home = c("score_home", "turnover_margin_home", "possession_home","completions_home","sacks_home")
+pairs(data[,win_features_home],col = as.factor(win_home),main = "Win_home")
+
+```
+
+```{r}
+#for home win stats 
+rushing_offense_home = rep(0,nrow(data_home))
+rushing_offense_home[(data_home$rushing_attempts_home/(data_home$rushing_attempts_home + data_home$passes_att_home )) > .65] = 1
+passing_offense_home = rep(0,nrow(data_home))
+passing_offense_home[(data_home$passes_att_home/(data_home$rushing_attempts_home + data_home$passes_att_home )) > .65] = 1
+data_home = data.frame(data_home,passing_offense_home)
+data_home = data.frame(data_home,rushing_offense_home)
+
+
+t.test(data_home$score_home ~ data_home$rushing_offense_home,alternative = "less",conf.level = .95)
+#p-value 2.392e-10
+#mean in group 0 = 23.24267   mean in group 1 = 27.92424
+
+
+t.test(data_home$score_home ~ data_home$passing_offense_home,alternative = "greater",conf.level = .95)
+#p-value = 2.2e-16
+#mean in group 0 = 24.56556  mean in group 1 = 18.88725 
+
+#for away win stats
+rushing_offense_away = rep(0,nrow(data_away))
+rushing_offense_away[(data_away$rushing_attempts_away/(data_away$rushing_attempts_away + data_away$passes_att_away )) > .65] = 1
+passing_offense_away = rep(0,nrow(data_away))
+passing_offense_away[(data_away$passes_att_away/(data_away$rushing_attempts_away + data_away$passes_att_away )) > .65] = 1
+data_away = data.frame(data_away,passing_offense_away)
+data_away = data.frame(data_away,rushing_offense_away)
+
+t.test(data_away$score_away ~ data_away$rushing_offense_away,alternative = "less",conf.level = .95)
+#p-value 8.501e-11
+#mean in group 0 = 20.96707  mean in group 1 = 26.12637
+
+
+t.test(data_away$score_away ~ data_away$passing_offense_away,alternative = "greater",conf.level = .95)
+#p-value 2.2e-16
+#mean in group 0 = 22.31967  mean in group 1 = 17.17185
+```
+
+```{r}
+#best_k <- NbClust(data_home.std[,win_features_home],min.nc = 4,max.nc = 8,method = "kmeans")
+#best number of clusters is 4 
+cluster_home = kmeans(data_home.std[,win_features_home],4)
+#Cluster means:
+#  score_home turnover_margin_home possession_home completions_home sacks_home
+# 1 -0.5434108            0.3600000      -0.2230412      -0.04450886   4.336154
+# 2 -0.6047789            2.5652174      -0.4231227       0.26316108   2.036715
+# 3  0.7228386           -2.7227550       0.3010161      -0.27232036   1.539669
+# 4  0.2701472           -0.1583468       0.2053785       0.05251811   1.225443
+
+
+#win home #0.638088+ (0.161229*score_home) + (turnover_margin_home * -0.069433 ) + (possession_home  * 0.13649) + (-0.085707 * completions_home) +(sacks_home * -0.034853)
+
+#0.638088+ (0.161229*-0.5434108 ) + (0.3600000  * -0.069433 ) + (-0.2230412   * 0.13649) + (-0.085707 * -0.04450886 ) +(4.336154 * -0.034853)
+#0.638088+ (0.161229*-0.6047789 ) + (2.5652174  * -0.069433 ) + (-0.4231227    * 0.13649) + (-0.085707 * 0.26316108 ) +(2.036715* -0.034853)
+#0.638088+ (0.161229*0.7228386) + (-2.7227550  * -0.069433 ) + ( 0.3010161 * 0.13649) + (-0.085707 * -0.27232036 ) +(1.539669 * -0.034853)
+#0.638088+ (0.161229*0.2701472 ) + (-0.1583468 * -0.069433 ) + (0.2053785   * 0.13649) + (-0.085707 * 0.05251811 ) +(1.225443 * -0.034853)
+
+#win likelihood - 1 = 0.3477224
+#win likelihood - 2 = 0.211177
+#win likelihood - 3 = 0.954443
+#win likelihood - 4 = 0.6734586
+
+cluster_away = kmeans(data_home.std[,win_features_away],4)
+#Cluster means:
+#  score_away turnover_margin_away possession_away completions_away sacks_away
+# 1 -0.6215894           2.48672566      -0.4321620        0.1114922   2.472245
+# 2  0.2474475          -0.05250365       0.1487127        0.1795801   1.418571
+# 3 -0.5304623           0.18421053      -0.1847441       -0.1228807   4.930162
+# 4  0.7452535          -2.71523179       0.3914878       -0.3657284   1.619678
+
+
+#win away # 0.520854  + (0.177943*score_away) + (turnover_margin_away * -0.066493) + (possession_away  * 0.131661)  + (completions_away*-0.096597) + (sacks_away * -.034941)
+
+
+#win likelihood - 1 = 0.09084526
+#win likelihood - 2 = 0.5210432
+#win likelihood - 3 = 0.4182789
+#win likelihood - 4 = 0.8642893
+  
+  
+```
