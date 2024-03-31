@@ -1,0 +1,74 @@
+#read the data set
+dat<- read.csv("~/Desktop/Data Mining/Columbus_Airbnb_listings.csv", stringsAsFactors = TRUE)
+#1. Using the function hist, build a histogram of the variable price in the entire dataset and include a
+#copy of this histogram in your assignment.
+hist(dat$price,main = "Price Distribution",xlab='Price')
+# log of variable 
+dat$logPrice = log(dat$price)
+
+#2 Using the sample function, split your dataset into training and test sets, keeping 70% of your
+#observations in the training set. Please use set.seed(12524, sample.kind="Rejection")
+#immediately before running the function sample. What are the minimum, median, and average
+#values of number_of_reviews in the training set? And in the test set?
+
+set.seed(12524, sample.kind="Rejection")
+spl = sample(nrow(dat),0.7*nrow(dat))
+train.dat = dat[spl,]
+test.dat= dat[-spl,]
+
+#train 
+min(train.dat$number_of_reviews)
+median(train.dat$number_of_reviews)
+mean(train.dat$number_of_reviews)
+#test
+min(test.dat$number_of_reviews)
+median(test.dat$number_of_reviews)
+mean(test.dat$number_of_reviews)
+#3 Based on the observations in the training set, is multicollinearity a concern in this case? Why, or why not?
+pairs(train.dat[,3:12])
+
+#4 - Using only the observations in the training set, build a linear regression model with logPrice as
+#your dependent variable and using ALL the explanatory variables (remember that price, id, and
+#host_id are NOT independent variables). For this question, do not include any interaction terms
+#or transformations of the independent variables 
+linreg=lm(logPrice ~ nearNorth + nearSouth + entireApt + min_2nights + min_30nights + 
+number_of_reviews + host_listings_count + availability_365, data=train.dat)
+
+#5 Continue to use only the observations in the training set. Create a new model by removing the
+#variables that are not significant at the 95% level from the model in 4., one at a time, until all variables
+#are statistically significant (p-value < 0.05)
+linreg1=lm(logPrice ~ nearSouth + entireApt + min_30nights + number_of_reviews + host_listings_count + availability_365, data=train.dat)
+#Based on your model and keeping all else constant:
+ # i. What is the difference in predicted logPrice between a listing that requires a
+#minimum of 30 nights and one that does not? Which one is predicted to be more
+#expensive
+
+
+#Imagine that a friend of yours who works at Airbnb makes the following conjecture: “I
+#think that the number of reviews should have a significantly different effect on
+#logPrice
+#for listings that are entire homes/apartments than for listings that are not.” Test your
+#friend’s conjecture by including an additional term (hint: this term may involve more than
+#one variable) to the list of explanatory variables in your model. Is your friend’s conjecture
+#correct? Explain why or why not. 
+train.dat.entire = train.dat[train.dat$entireApt == 1,]
+train.dat.ne = train.dat[train.dat$entireApt == 0,]
+
+linreg2=lm(logPrice ~ nearSouth + entireApt + min_30nights + number_of_reviews + host_listings_count + 
+             availability_365, data=train.dat.entire)
+
+linreg3=lm(logPrice ~ nearSouth + entireApt + min_30nights + number_of_reviews + host_listings_count
+           + availability_365, data=train.dat.ne)
+
+#6. Using the test set, compute the out-of-sample R 2 from the regression model in Question 5a.
+#a. What is the value of the OSR 2?
+#b. Based on the difference between R 2 (in the training set) and OSR 2 (in the test set), should
+#we be worried about overfitting in this case? Why, or why not? (10 pts)
+test.dat$pred_vals = predict(linreg1, newdata = test.dat)
+SSE = sum((test.dat$pred_vals - test.dat$logPrice)^2)
+train.mean = mean(train.dat$logPrice)
+SST = sum((train.mean - test.dat$logPrice)^2)
+OSR2 = 1 - SSE/SST
+
+# The OSR2 is .0.3100513 and the R2 is .0.3192 and since the difference is minimal there is no need to worry about overfitting 
+
