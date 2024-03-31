@@ -1,0 +1,219 @@
+
+library(rpart)
+library(rpart.plot)
+
+# For random forests, we need to install and load a new package:
+
+install.packages("randomForest")
+
+library(randomForest)
+
+
+
+### PART I: RANDOM FOREST  ###
+### (for continuous dep. variable; see separate R file for discrete case) ###
+
+
+### 1. READ, EXPLORE, AND SPLIT DATA:
+
+# For this part, we'll use a dataset about Energy Consumption from a
+# household in Chievres, Belgium (a similar version of the dataset is
+# available here: https://archive.ics.uci.edu/dataset/374/appliances+energy+prediction):
+
+datRF<-read.csv("EnergyConsumption.csv", stringsAsFactors = TRUE)
+
+# Let's take a quick look at the variables with str:
+
+str(datRF)
+
+# The hour of the day and month of the year corresponding to each observation are 
+# included in the columns "Hour" and "Month," respectively.  In addition, each 
+# observation in the dataset also contains temperature (in Celsius, columns 
+# starting with "T_") and humidity (in percentage, columns starting with "H_") for 
+# the following rooms in the house: kitchen, living room, office, bathroom, 
+# teenager's bedroom, and parents' bedroom. Similar information is also included 
+# for outside the house (north side, labeled "outNorth") and the closest weather 
+# station, located in Chievres, Belgium. 
+
+# And we'll use the log of the dependent variable:
+
+datRF$logApp = log(datRF$Appliances)
+
+# NOTE: whenever we make a transformation like the one above, we have to remember
+# NOT to use Appliances as an independent variable!
+
+
+# Let's split the data with seed 123, leaving 80% of observations in the training set:
+set.seed(123, sample.kind = "Rejection")
+spl = sample(nrow(datRF),0.8*nrow(datRF))
+train.RF = datRF[spl,]
+test.RF = datRF[-spl,]
+
+# (When working with continuous dependent variables, we simply use the function "sample")
+
+
+### 2. REGRESSION TREE (CART):
+
+# We begin by building a regression tree with minbucket = 300 (approx. 2% of 
+# observations in the training set) and cp = 0.0035. We'll use this to have a
+# reference point for when we build our Random Forest
+
+regTree = rpart(logApp ~ . -Appliances, data = train.RF, method = "anova",
+                minbucket = 300, cp = 0.0035)
+
+# We can then compute the out-of-sample R2:
+
+pred = predict(regTree, newdata=test.RF)
+SSE = sum((test.RF$logApp - pred)^2)
+meanAppl = mean(train.RF$logApp)
+SST = sum((test.RF$logApp - meanAppl)^2)
+OSR2 = 1 - SSE/SST
+OSR2
+
+
+
+### 3. RANDOM FOREST: PRELIMINARY
+
+# We will build our first random forest! For this, we use the function randomForest:
+
+# randomForest (formula, datRFa, ntree, nodesize, mtry)
+
+# Note: our dependent variable is of type "num" (number), so randomForest will know
+# that it should build regression trees. For categorical dependent variables, we need to make
+# sure that the dependent variable is a Factor, so that randomForest builds classification
+# trees instead. You should always check this using str:
+
+str(datRF$logApp)
+
+# We continue to use the log transformation for appliances. For now, let us consider:
+# ntree = 100 (total number of trees to build)
+# nodesize = 300 (min. number of observations in each terminal node / leaf)
+# mtry = ?? (number of indep. variables to randomly select in each tree)
+
+# To select mtry: how many independent variables do we have? ("p" in the slides)
+ncol(datRF) - 2
+
+# Note: we subtract 2 because we have "Appliances" and "logApp" in our dataset
+# datRF, none of which are indpendent variables.
+
+# Let's begin with mtry = 7 (which corresponds approx. to p/3)
+# Reminder: in the case of continuous dependent variables, 
+# randomForest considers p/3 by default.
+
+# Because there is randomness in this process, we'll first set the seed to 123
+
+set.seed(123, sample.kind = "Rejection")
+
+rf_ini = randomForest(logApp~. - Appliances, 
+                      data=train.RF, 
+                      ntree=100,
+                      nodesize=300,
+                      mtry=7)
+
+
+# In addition to using the model to generate predicted values (which we will
+# do later), we can explore a couple of things:
+
+# i) Variable Importance (we can visualize it with the function varImpPlot([model]):
+
+varImpPlot(rf_ini)
+
+# Not surprisingly, in this case "Hour" is by far the most important variable.
+
+# ii) How our choice of ntree performed, by looking at the out-of-bag (OOB) error
+# as a function of the number of trees (using the trees built in the process of our
+# random forest)
+
+plot(rf_ini)
+
+# In this case, we have little reason to believe that a greater number of ntree
+# would perform better, as the error seemed to stabilize before reaching 100.
+# IMPORTANT: if you do NOT see the error stabilizing before reaching the end
+# of the graph, then you should consider increasing the number of ntree and
+# try again.
+
+
+# But how do we know if mtry = 7 was a good choice? We can explore this question
+# by testing several values of mtry and compare their OOB error. 
+
+# First, we need to separate our dependent variable (y) from our independent variables (x)
+
+colnames(train.RF)
+
+# So we need to remove the first and last columns (Appliances
+# and logApp, respectively) to get x.
+# Let's create a vector with the column indices of the first and last column 
+# of the data:
+
+excl = c(1,24)
+excl
+
+# We can use these indices to separate x and y:
+x = train.RF[,-excl]
+y = train.RF$logApp
+
+# Now we are ready to explore the mtry question. For this, we'll use the 
+# function tuneRF, as follows:
+
+# tuneRF (x, y, mtryStart = [starting point for the value of mtry],
+#         stepFactor = [at each iteration, mtry is multiplied 
+#                     (or divided) by this number],
+#         ntreeTry = [number of trees used at the tuning step],
+#         nodesize = [same as before],
+#         improve = [(relative) improvement in OOB error must be 
+#                   at least by this amount for the search to continue])
+
+# We again begin by setting the seed. Let's use seed 123
+
+set.seed(123, sample.kind="Rejection")
+tuneRF(x, y, mtryStart = 7, stepFactor = 2, ntreeTry=100, nodesize=300, improve=0.01)
+
+# It turns out that mtry = 14 gives us a lower error  - we'll use that in our final model.
+
+# (Note that we should start by finding this value, before building a random forest).
+
+
+
+### 4. RANDOM FOREST: FINAL MODEL.
+
+set.seed(123, sample.kind="Rejection")
+rf_final = randomForest(logApp~. - Appliances, 
+                        data=train.RF, 
+                        ntree=100,
+                        nodesize=300,
+                        mtry=14)
+
+# Using this random forest model, we can use it to predict log(Appliances)
+# and compute our out-of-sample R2.
+
+pred_rf = predict(rf_final, newdata=test.RF)
+SSE_rf = sum((test.RF$logApp - pred_rf)^2)
+SST_rf = sum((test.RF$logApp - meanAppl)^2)
+OSR2_rf = 1 - SSE_rf/SST_rf
+OSR2_rf
+
+# Do you remember how much was our OSR2 using a single tree?
+OSR2
+
+# We made a BIG improvement in our predictions!
+# (Note, however, that this is not guaranteed to always be the case.
+# It's possible for a single tree to do better than a random forest.)
+
+
+
+### IMPORTANT: WHEN YOU HAVE CATEGORICAL INDEP. VARIABLES ###
+
+# If you have a categorical INDEPENDENT variable, you first need to 
+# "manually" (using R) pass them to the model as the corresponding
+# n-1 dummy variables. randomForest does NOT do this automatically, so
+# you will likely get weird and possibly incorrect results if you don't 
+# manually do this. 
+
+# Luckily, there is an easy code to create a different column for each
+# level of ALL categorical (factor) variables:
+
+# new_dat = model.matrix(~., dat)[,-1]
+
+# The resulting dataset new_dat also includes each 
+# (not-converted) numerical column.
+
