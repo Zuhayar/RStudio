@@ -1,0 +1,318 @@
+
+### 0. BEFORE WE BEGIN: 
+
+# Set working directory: 
+# Session -> Set Working Directory -> To Source File location
+
+# Note: for this session, we'll use a simplified version of a 
+# dataset on Taiwanese loans that can be found at 
+# https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients
+# Useful information about our variables can be found there.
+
+# We also need to install 2 packages for: (i) splitting our data
+# in a "smart way"; and (ii) build the ROC curve and compute AUC.
+
+install.packages("caTools")
+install.packages("ROCR")
+
+# caTools - for splitting the data in a smart way (more about this below).
+# ROCR - for creating ROC curves and computing AUC.
+
+# Now that these packages are installed, we need to load them
+# using the "library" function:
+library(caTools)
+library(ROCR)
+
+
+
+### 1. READ AND SPLIT DATASET (in a slightly new way)
+
+# We begin by reading our dataset using the read.csv command
+
+loans = read.csv("Credit_data.csv", stringsAsFactors = TRUE)
+
+# As always, let's take a quick look at the data:
+head(loans)
+
+# Limit: Amount of given credit, in 1,000 New Taiwan Dollars 
+# (1,000 NTD approx. equal to 32 USD)
+# Gender: 1 = male; 2 = female.
+# Marital status: 1 = married; 2 = single/other.
+# Late i: whether the person was late i months ago.
+# Default: dependent variable (0/1).
+
+# The following function summarizes the structure of our dataset
+# and each of the columns:
+str(loans)
+
+# What do you notice? Are gender and marital status really numerical
+# for regression purposes?
+# We'll have to make sure to correct this later when 
+# running our logistic regression.
+
+
+# Now we can split the data. Since this involves randomness, don't forget to
+# use the set.seed command first (for today, we'll use 1760 
+# for the seed number). 
+
+set.seed(1760, sample.kind="Rejection")
+split = sample.split(loans$Default, SplitRatio = 0.7)
+
+# sample.split splits the dataset "smartly" for binary outcomes: 
+# in this case, SplitRatio = 0.7 means that we'll leave 70% 
+# of the observations in the training set; BUT instead of 
+# just doing this completely at random, sample.split makes sure that 
+# the proportion of cases where the Dependent Variable
+# ("loans$Default", the first argument of the function)
+# is equal to 1 is similar in the training and test sets.
+
+# IMPORTANT: you should always put dataset_name$dep_var_column in
+# the first argument of sample.split. This is different from the
+# function "sample", where you only needed to specify the dataset.
+
+# Let's take a quick look at the object "split" (which is a vector)
+head(split)
+length(split)
+
+# We can use it to split our dataset. Notice that it's
+# DIFFERENT from how we split our data for linear regression:
+train = loans[split == TRUE,]
+test = loans[split == FALSE,]
+# All observations in loans where split is TRUE, go to the training set.
+# All observations in loans where split is FALSE, go to the test set.
+
+# Finally, we can make sure that the split did what 
+# we wanted it to do:
+nrow(train)/nrow(loans)
+table(train$Default)/nrow(train)
+table(test$Default)/nrow(test)
+
+# We confirm that we indeed got about 70% of the observations
+# in the training set; and that the proportion of 0s (and of 1s)
+# is similar between the training and test sets.
+
+
+
+### 2. BUILDING A LOGISTIC REGRESSION:
+
+# Instead of the linear model function "lm", we will now use 
+# the Generalized Linear Model, "glm", function. The first 
+# argument is the formula and the second argument is the 
+# dataset, as before. But now we need to add family = "binomial"
+# at the end of the function. This tells R that we want to use 
+# a logistic regression model (as opposed to, for example,
+# a probit model).
+
+# For now, let's just use all explanatory variables
+# (In general, you'd first need to check for multicollinearity
+# by looking at the coefficients of correlation between 
+# independent variables; but in this case, none of them 
+# is greater in absolute value than 0.7):
+
+logreg = glm(Default ~ Limit + as.factor(Gender) + as.factor(MaritalStatus)
+             + Age + Late1 + Late2 + Late3, data=train, family="binomial")
+
+# Note: "as.factor" converts a variable into a factor. 
+# In other words, instead of treating the variable as numerical, 
+# it creates dummies for the different categories (levels) of
+# the variable. In the example, as.factor(MaritalStatus) means 
+# that the values "1" and "2" will not be treated as numbers; 
+# instead, it will create a dummy variable that takes the value of 1
+# if MaritalStatus = 2 (by default, the lower value is left as 
+# the baseline category, so MaritalStatus = 1 will be assigned 
+# the Dummy value of 0). If MaritalStatus had 3 levels (1, 2, 3),
+# then as.factor(MaritalStatus) would have created 2 dummy variables: 
+# one for whether MaritalStatus is equal to 2; 
+# and another one for whether MaritalStatus is equal to 3. 
+
+# Alternatively, you could have redefined a column as a 
+# factor variable before using it in a regression;
+# for example:
+
+# loans$Gender=as.factor(loans$Gender)
+
+
+# We can look at the output from this model in the same way 
+# that we looked at linear regression output:
+
+summary(logreg)
+
+# And if we were interested in computing the exponential 
+# of all coefficients in our regression, we could do the following:
+
+exp(coef(logreg))
+
+# Q: Do you remember what is the interpretation of these values?
+
+# Q: what is the expected effect of a 20-unit DECREASE in the
+# value of age? (Top Hat)
+
+
+
+### 3. PREDICTING VALUES ON TEST SET; CONFUSION MATRIX:
+
+# Let us now evaluate our model on the test set. For that, we'll first need
+# to go from predicted probabilities to predicted (binary) values.
+# We'll begin by defining our probability threshold/cutoff
+# as threshold=0.25:
+
+threshold = 0.25
+
+# (Coding note: this step would make it easier to re-evaluate the model
+# with a different threshold probability later, if we wanted, compared
+# to not defining "threshold" as a variable).
+
+# Let's now look at the predicted values (probabilities) on the test set
+# and store those in a new column called "predProbs".
+
+# Similar to how we computed predicted values in the linear 
+# regression case, we can use the function "predict" to 
+# compute predicted probabilities (prob. that Y=1)
+# for all the observations in a dataset. 
+
+# However, there's one significant
+# difference: we now need to specify that we want 
+# the prediction type to be equal to "response",
+# so that we get a predicted probability.
+
+test$predProbs = predict(logreg, newdata=test, type="response")
+
+# With the set of predicted probabilities and our threshold 
+# probability, we can add a column to "test" with the 
+# predicted default (0/1), which we'll call "predDefault":
+
+test$predDefault = ifelse(test$predProbs >= threshold, 1, 0)
+
+# Note: The function ifelse(condition, valTrue, valFalse) evaluates
+# "condition" (the first argument) and assigns the value "valTrue" 
+# (the second argument) if TRUE, and "valFalse" (the third
+# argument) if FALSE.
+
+
+# Finally, we can use the table function to build our
+# Confusion Matrix, comparing actual and predicted defaults:
+
+table(test$Default, test$predDefault)
+
+# The first argument in "table" above determines the rows, 
+# so we enter the actual observed values; the second argument 
+# determines the columns, so we enter the predicted 0/1 values.
+
+# What does each of the four cells mean? (in other words, which cell
+# corresponds to TP, TN, FP, FN?)
+
+# Let us now compute some of the performance measures we've studied so far,
+# based on the confusion matrix:
+
+# Accuracy?
+(1121 + 5769)/nrow(test)
+
+# Sensitivity?
+1121 / (1121+862)
+
+# Specificity?
+5769 / (5769 + 1145)
+
+
+
+## 4. ROC and AUC:
+
+# How do we build our ROC curve? Remember that 
+# it should be built based on the model's performance
+# in the test set.
+
+# We'll use the function "prediction" (note: NOT predict),
+# which transforms the predicted probabilities (first argument) 
+# and the ACTUAL 0/1 values (second argument)
+# into a standardized format, and store them into
+# the object roc.pred...
+
+roc.pred = prediction(test$predProbs, test$Default)
+
+# ... which we can then use to actually create the ROC curve
+# with the function "performance" (note: we need to store this
+# so that we can then draw the curve):
+
+perf = performance(roc.pred, "tpr", "fpr")
+
+# (Note: "tpr" and "fpr" stand for True Positive Rate and 
+# False Positive Rate, respectively; or equivalently, Sensitivity
+# and 1 - Specificity, which are the elements that we need for ROC)
+
+# With that, we can finally plot our ROC curve...
+
+plot(perf,                      # the data
+     main = "ROC Curve",        # the chart's title
+     xlab = "1 - Specificity",  # the name of the x-axis
+     ylab = "Sensitivity",      # the name of the y-axis
+     colorize=TRUE)             # add color to curve depending on threshold prob.
+
+# ... and add the diagonal corresponding to the Random Assignment
+# benchmark model: 
+
+abline(0,1) # adds line at intercept 0, with slope 1
+
+# Q: How do you read the color scale in the ROC curve?
+# How could we use it to evaluate sensitivity and 
+# specificity for our given threshold (0.25)?
+
+
+# Similarly, we can compute the Area under the curve 
+# (AUC) in two steps:
+
+perf_auc = performance(roc.pred, "auc")
+as.numeric(perf_auc@y.values)
+
+# What do you think? Is this a "good model"?
+
+
+# IMPORTANT: remember that the ROC curve and the AUC
+# do NOT depend on any given probability threshold
+
+
+
+### 5. MAKE A PREDICTION FOR A SPECIFIC OBSERVATION 
+
+# Finally, how could we use "predict" to get the predicted probability 
+# for a specific set of values (of the independent variables)?
+
+# Since we already know how to make predictions on a new dataset (using
+# the function predict), we can "cheat" and create a dataset with 
+# a single observation - the observation for which we want a prediction :)
+
+# Example: what is the predicted probability of deafult for an
+# individual with Limit = 50(K), male, not married, 
+# age=30 and who was only late in her payment 2 months ago?
+
+single.obs = data.frame(Limit=50, Gender=1, MaritalStatus=2, 
+                        Age=30, Late1=0, Late2=1, Late3=0)
+
+# ... and then use "predict" for that specific observation.
+
+predict(logreg, newdata=single.obs, type="response")
+
+# Note 1: when defining your single-observation-dataset, it is
+# important that you use the same names (case sensitive) that 
+# you have in the logistic regression model.
+
+# Note 2: What happens if we forget to specify type="response":
+predict(logreg, newdata=single.obs)
+# Which is equal to the log-odds of the predicted probability:
+log(0.2007/(1-0.2007))
+
+
+
+### (6: Lift - not required for the course)
+
+# Finally, we can also use the "performance" function to build 
+# a Lift curve (we'll see this on Thursday):
+
+LiftData <- performance(roc.pred, measure="lift", x.measure="rpp")
+
+plot(LiftData,                # the data
+     main="Lift Chart",       # the chart's title
+     xlab="% of Population",  # the name of the x-axis
+     ylab="Lift",             # the name of the y-axis
+     col="blue")              # the color of our lift curve
+
+abline(1,0,col="red") # this adds a straight line at intercept 1 with slope 0
