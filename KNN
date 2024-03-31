@@ -1,0 +1,138 @@
+```{r}
+hotels = read.table("hotel_reviews.txt", header = T)
+```
+
+# Problem 0 - From the solutions 
+```{r}
+# (a)
+hotels.std = hotels[hotels$Total_Number_of_Reviews >= 50, ]
+
+# (b)
+hotels.std[,3:11] = data.frame(scale(hotels.std[,3:11]))
+quality_hotel = rep(0, nrow(hotels.std))
+quality_hotel[hotels.std$Average_Score >= 1] = 1
+quality_hotel = as.factor(quality_hotel) 
+
+hotels.std = data.frame(hotels.std, quality_hotel)
+
+# (c)
+hotels.std = hotels.std[sample(nrow(hotels.std)), ] # Shuffles the rows
+training_set = hotels.std[1:round(nrow(hotels.std)/2),]
+testing_set = hotels.std[(round(nrow(hotels.std)/2)+1):nrow(hotels.std),]
+```
+
+# Problem 1
+```{r}
+# (a)
+ plot(data = training_set, lat ~ lng)
+# (b)
+# I believe it can be helpful as better hotels may be in a certain part of a city therefore may be a correlation between these two factors. 
+# (c)
+cross_validated_pred_acc_for_k =  crossval_knn(training_set[,c("Negative_Word_Counts","Positive_Word_Counts","lat","lng")],training_set$quality_hotel,10,100)
+
+
+plot(1:100,cross_validated_pred_acc_for_k)
+
+which(cross_validated_pred_acc_for_k == max( cross_validated_pred_acc_for_k))
+
+#highest k = 13
+
+# (d)
+predicted_labels_knn = knn(training_set[,c("Negative_Word_Counts","Positive_Word_Counts","lat","lng")],testing_set[,c("Negative_Word_Counts","Positive_Word_Counts","lat","lng")],training_set$quality_hotel,13)
+
+table(testing_set$quality_hotel,predicted_labels_knn)
+
+
+#overall accuracy = .87
+#specificity = .7
+#sensitivity = .89
+```
+
+# Problem 2
+```{r}
+# (a)
+log_model= glm(data=hotels.std,quality_hotel ~ Negative_Word_Counts+Positive_Word_Counts+lat+lng,family = "binomial")
+
+# Pr(hotel quality = 1) = e( -2.8100  + (Negative_Word_Counts  *-1.7225  ) + (Positive_Word_Counts * 0.9036 ) +(lat * 0.1820) + (lng *  -0.2114)) / (1 + e( -2.8100  + (Negative_Word_Counts  *-1.7225  ) + (Positive_Word_Counts * 0.9036 ) +(lat * 0.1820) + (lng *  -0.2114))
+
+# (b)
+cross_validated_pred_acc_for_thresholds = crossval_log_reg(training_set,log_model,training_set$quality_hotel,10)
+
+plot((1:100)/100,cross_validated_pred_acc_for_thresholds)
+
+which(cross_validated_pred_acc_for_thresholds == max(cross_validated_pred_acc_for_thresholds))
+
+#max = 51
+
+# (c)
+threshold = .51
+ predicted_labels = predict.glm(log_model,testing_set,type = "response" ) > threshold
+table(testing_set$quality_hotel,predicted_labels)
+
+#overall accuracy = .89
+#specificity = .75
+#sensitivity = .90
+
+# (d)
+# in this case logistic threshold is better as the total accuracy is better 
+
+```
+
+# Helpful functions!
+```{r}
+library(class)
+# Function that performs cross validation for knn
+crossval_knn = function(data, labels, folds, max_k){
+  # SYNTAX
+  # data is the data.frame of training_data (only the vector used!)
+  # labels is the vector of class labels
+  # folds is the number of folds validation to do
+  # max_k is the upper limit on the k to use
+  
+  acc_knn = rep(0, max_k)
+  for(k in 1:max_k){
+    results = rep(0, folds)
+    for(i in 1:folds){
+      ind = seq(i,length(data[,1]), folds)
+      training_set = data[-ind, ]
+      testing_set = data[ind,]
+      training_labels = labels[-ind]
+      testing_labels = labels[ind]
+      
+      predicted_labels = knn(training_set, testing_set, training_labels, k)
+      
+      results[i] = sum(diag(table(predicted_labels, testing_labels)))/length(testing_labels)
+    }
+    acc_knn[k] = mean(results)
+  }
+  return(acc_knn) # returns the vector of average performance.
+}
+
+crossval_log_reg = function(data, model, labels, folds){
+  # SYNTAX
+  # data
+  # model is the log_reg_model
+  # labels is the vector of class labels
+  # folds is the number of folds validation to do
+
+  acc_T = rep(0, 100)
+  for(k in 1:100){
+    results = rep(0, folds)
+    for(i in 1:folds){
+      ind = seq(i,length(labels), folds)
+      training_set = data[-ind, ]
+      testing_set = data[ind,]
+      training_labels = labels[-ind]
+      testing_labels = labels[ind]
+      
+      predicted_labels = predict.glm(model, testing_set, type = "response") > k/100
+      
+      results[i] = sum(diag(table(predicted_labels, testing_labels)))/length(testing_labels)
+    }
+    acc_T[k] = mean(results)
+  }
+  return(acc_T) # returns the vector of average performance for each threshold.
+}
+```
+
+
