@@ -1,74 +1,263 @@
-#read the data set
-dat<- read.csv("~/Desktop/Data Mining/Columbus_Airbnb_listings.csv", stringsAsFactors = TRUE)
-#1. Using the function hist, build a histogram of the variable price in the entire dataset and include a
-#copy of this histogram in your assignment.
-hist(dat$price,main = "Price Distribution",xlab='Price')
-# log of variable 
-dat$logPrice = log(dat$price)
 
-#2 Using the sample function, split your dataset into training and test sets, keeping 70% of your
-#observations in the training set. Please use set.seed(12524, sample.kind="Rejection")
-#immediately before running the function sample. What are the minimum, median, and average
-#values of number_of_reviews in the training set? And in the test set?
+### 0. BEFORE WE BEGIN: SET WORKING DIRECTORY
 
-set.seed(12524, sample.kind="Rejection")
+# Make sure that you have all the material for today (including this file) 
+# in the same folder, and then do:
+
+# Session > Set Working Directory > To Source File Location.  
+
+# Afterwards, you should be able to read the Advertising data
+# (based on a fictitious dataset from Textbook 2)
+
+dat<-read.csv("Advertising_Lec3.csv", stringsAsFactors = TRUE)
+
+# Note: stringsAsFactors specifies whether you want R to 
+# automatically convert strings (text) to factors (dummy variables)
+# when reading the file. If all you want to do with your data is
+# run a data analysis method, it can be useful to set it to TRUE.
+# Otherwise, if you want to first do some data manipulation, it is often
+# better to set it to FALSE.
+
+# Note 2: I will not be using R markdown in the course. To run a 
+# command line from the file, simply put the cursor on that line, then
+# press Ctrl-Enter.
+
+
+
+### 1. PRELIMINARY DATA INSPECTION
+
+# Let us first look at the first rows of the data with the command "head()"
+head(dat)
+
+# And let's also look at a summary of our dataset:
+summary(dat)
+
+# This is highly recommended, to get a sense of what is in our dataset,
+# as well as to check that nothing looks wrong. For example, variables
+# that should be positive should not contain negative values; and you can
+# easily check the range and scale of values for a given variable 
+# (e.g., a variable might be in "thousands", or it might be in seconds 
+# instead of minutes, etc.)
+
+# In our dataset, "sales" is the dependent variable, while the independent variables
+# represent expenditures in different types of advertisement (TV, radio, and newspaper).
+# Let's first look at simple scatterplots:
+
+plot(dat$TV, dat$sales)
+plot(dat$radio, dat$sales)
+plot(dat$newspaper, dat$sales)
+
+# In the case of factor variables, we automatically get a boxplot:
+plot(dat$promotion, dat$sales)
+
+
+# We could perform many additional analyses (in particular, to verify 
+# linear regression assumptions), but let's for now just
+# look at a histogram of the dependent variable, "y" (sales).
+
+hist(dat$sales)
+
+# Looks OK, not too skewed, so a transformation of the dependent
+# variable (in particular, log(sales)) is not necessary.
+
+
+# Q: what would you do if you didn't remember how the "hist" command works? 
+# Or if you wanted to learn more about it?
+?hist
+
+
+# Let's also check the correlation between variables, to 
+# know if we need to worry about multicollinearity.
+
+# We only worry about correlations among our explanatory variables, so we will remove
+# the column containing the dependent variable. Similarly, the correlation function
+# that we will use for now only handles continuous variables, so we don't consider 
+# column 4, "promotion".
+
+datX = dat[,c(1:3)] 
+
+# Or equivalently:
+datX = dat[,-c(4:5)]
+
+
+# Now we can look at the correlation matrix between continuous variables using the function
+# cor, applied to our reduced dataset:
+
+cor(datX)
+
+# "newspaper" and "radio" are mildly correlated, but not enough to be a concern.
+
+
+# Note: The "dataset[rows,cols]" command can be used to select specific rows and columns 
+# from 'dataset". The first argument (before the comma) can be used to specify 
+# which rows we want to keep.
+# Leaving it blank (as we did above) means that we're considering all rows,
+# and the specified columns (1-3)
+
+# For example, what would we do if we wanted to look at row 8 (all columns)?
+dat[8,]
+
+
+
+### 2. BUILDING A LINEAR REGRESSION MODEL (QUICK REVIEW)
+
+# To build a multiple linear regression using all explanatory variables
+# (and all of our available data):
+linreg=lm(sales ~ TV + radio + newspaper + promotion, data=dat)
+
+# Or simply:
+linreg=lm(sales ~., data=dat)
+# where the dot (".") after the tilde symbol means "all columns different from 
+# the dependent variable" (in this case, sales)
+
+# And to look at the results?
+summary(linreg)
+
+# Based on this, we could decide to remove newspaper from the equation.
+# An easy way to write "all variables except for newspaper" is as follows:
+
+linreg2=lm(sales ~. -newspaper, data=dat)
+summary(linreg2)
+
+# promtion is also not significant, so we can remove that as well:
+
+linreg3=lm(sales ~. -newspaper -promotion, data=dat)
+# or equivalently:
+linreg3=lm(sales ~ TV + radio, data=dat)
+
+summary(linreg3)
+
+# Remember that you SHOULD NOT remove the non-significant variables all at once!
+# A variable that is not statistically significant may become significant after
+# other variable(s) is(are) removed.
+
+# Note: there are algorithms that help you look for the "best" combination
+# of independent variables to keep in the model (e.g., the function regsubsets).
+# However, unless otherwise noted, we will NOT use them in the course.
+
+
+# We didn't really lose on R2 and we actually got a better Adjusted R-squared
+# in the third regression than in the first regression model
+# (which also takes into account how many explanatory variables there are).
+
+
+# In general, we got a high R2! That's great... but does this mean that this 
+# model is good for PREDICTIONS?
+
+
+
+### 3. USING LINEAR REGRESSION FOR PREDICTIONS:
+
+# First, we'll split our dataset into a training set and a test set.
+# Training set = data that we'll use to build our model(s).
+# Test set = data that we'll use to test our model(s).
+
+# We will create a random set of indices that will be used to split the data:
 spl = sample(nrow(dat),0.7*nrow(dat))
+
+# The "sample" function takes numbers up to n (the first input, 
+# in our case the number of rows in dat, nrow(dat)) and gives a random sample of
+# length equal to the second input (in this case, 70% of all rows)
+
+spl
+
+# Q: what do you think is a potential problem of this approach? How does your 
+# list of "random row indices" compare to mine? 
+
+
+# Solution: 
+set.seed(60, sample.kind="Rejection") 
+# (note: it could be any number! We only need to use the same one - in this case, 60)
+spl = sample(nrow(dat),0.7*nrow(dat))
+spl
+
+# IMPORTANT: you have to execute the set.seed command 
+# IMMEDIATLY BEFORE executing "sample"
+
+
+# So now we can split our dataset:
 train.dat = dat[spl,]
-test.dat= dat[-spl,]
+test.dat = dat[-spl,]
+# In the first case, we're considering all rows randomly selected by spl;
+# in the second case, we're taking all other rows (NOT in spl)
 
-#train 
-min(train.dat$number_of_reviews)
-median(train.dat$number_of_reviews)
-mean(train.dat$number_of_reviews)
-#test
-min(test.dat$number_of_reviews)
-median(test.dat$number_of_reviews)
-mean(test.dat$number_of_reviews)
-#3 Based on the observations in the training set, is multicollinearity a concern in this case? Why, or why not?
-pairs(train.dat[,3:12])
+# Let's build again a linear regression model with TV and radio as explanatory variables,
+# but using only the training set. Let's call it lin_train because we build the model
+# on the training set:
 
-#4 - Using only the observations in the training set, build a linear regression model with logPrice as
-#your dependent variable and using ALL the explanatory variables (remember that price, id, and
-#host_id are NOT independent variables). For this question, do not include any interaction terms
-#or transformations of the independent variables 
-linreg=lm(logPrice ~ nearNorth + nearSouth + entireApt + min_2nights + min_30nights + 
-number_of_reviews + host_listings_count + availability_365, data=train.dat)
+lin_train=lm(sales ~ TV + radio, data=train.dat)
 
-#5 Continue to use only the observations in the training set. Create a new model by removing the
-#variables that are not significant at the 95% level from the model in 4., one at a time, until all variables
-#are statistically significant (p-value < 0.05)
-linreg1=lm(logPrice ~ nearSouth + entireApt + min_30nights + number_of_reviews + host_listings_count + availability_365, data=train.dat)
-#Based on your model and keeping all else constant:
- # i. What is the difference in predicted logPrice between a listing that requires a
-#minimum of 30 nights and one that does not? Which one is predicted to be more
-#expensive
+# Let's look at it:
+summary(lin_train)
 
+# How do we now evaluate its performance on the test set?
 
-#Imagine that a friend of yours who works at Airbnb makes the following conjecture: “I
-#think that the number of reviews should have a significantly different effect on
-#logPrice
-#for listings that are entire homes/apartments than for listings that are not.” Test your
-#friend’s conjecture by including an additional term (hint: this term may involve more than
-#one variable) to the list of explanatory variables in your model. Is your friend’s conjecture
-#correct? Explain why or why not. 
-train.dat.entire = train.dat[train.dat$entireApt == 1,]
-train.dat.ne = train.dat[train.dat$entireApt == 0,]
+# First, we need to estimate the predicted values ("y hat") on the test set,
+# using our regression model. That can be done with the "predict" function:
 
-linreg2=lm(logPrice ~ nearSouth + entireApt + min_30nights + number_of_reviews + host_listings_count + 
-             availability_365, data=train.dat.entire)
+test.dat$pred_vals = predict(lin_train, newdata=test.dat)
+# The first input of "predict" takes the model you want to use, while the second input
+# takes the new data where you want to test your model (in our case, test.dat).
+# Note that you don't need to add the predicted values as a new column to the
+# original dataset, but it can help to visualize what we're doing:
+head(test.dat)
 
-linreg3=lm(logPrice ~ nearSouth + entireApt + min_30nights + number_of_reviews + host_listings_count
-           + availability_365, data=train.dat.ne)
+# We can now calculate our out-of-sample R2 (OSR2). Recall the formula is
+# 1 - SumSquaredErrors / SumSquaredTotal.
 
-#6. Using the test set, compute the out-of-sample R 2 from the regression model in Question 5a.
-#a. What is the value of the OSR 2?
-#b. Based on the difference between R 2 (in the training set) and OSR 2 (in the test set), should
-#we be worried about overfitting in this case? Why, or why not? (10 pts)
-test.dat$pred_vals = predict(linreg1, newdata = test.dat)
-SSE = sum((test.dat$pred_vals - test.dat$logPrice)^2)
-train.mean = mean(train.dat$logPrice)
-SST = sum((train.mean - test.dat$logPrice)^2)
+# SSE is the sum of squared differences between what our
+# model predicts (pred_vals) and what actually happened
+SSE = sum((test.dat$pred_vals - test.dat$sales)^2)
+
+# SST is the sum of square differences between our
+# benchmark model (the mean value of sales in the TRAINING set) 
+# and what actually happened
+train.mean = mean(train.dat$sales)
+SST = sum((train.mean - test.dat$sales)^2)
+
+# Finally, we have the OSR2
 OSR2 = 1 - SSE/SST
+OSR2
 
-# The OSR2 is .0.3100513 and the R2 is .0.3192 and since the difference is minimal there is no need to worry about overfitting 
+# It went down (which is usually the case) when compared to R2 in the training set.
+# But not by too much!
+
+
+# IMPORTANT: When we see a big drop between R2 and OSR2,
+# that can be a sign of overfitting. It could suggest that we're building a model
+# that does great at "predicting values in the training set", at the expense of its
+# predictive power on the test set - where we really care about predictions.
+
+# In general, simpler models (e.g., with fewer independent variables) can
+# give you a better OSR2 (in the test set), even if they yield a lower R2 
+# (in the training set). This is because simpler models can be better at avoiding
+# overfitting - they can identify more general patterns in the data, that is,
+# patterns that exist not ONLY in the training set. Throughout the course,
+# an important part of our job will be to find the "sweet spot" between models
+# that are too simple and models that are too complex (which risk
+# overfitting).
+
+
+
+### 4. INTERACTION EFFECTS:
+
+# Let's repeat the steps above for a different model, keeping TV and radio
+# and also including an interaction effect between the 2 variables:
+
+lin_inter=lm(sales ~ TV + radio + TV*radio, data=train.dat)
+
+# Note: by default, if you only included TV*radio in the equation above,
+# you would still get the coefficients for TV and for radio - in addition
+# to the interaction. This is because it is the best practice: in general,
+# if you include an interaction, you should also include the items that
+# are interacting (which are known as the main effects, as opposed to
+# the interaction effect).
+
+# NOTE: if you wanted to add, for example, TV^2 to the regression, you'd need
+# to add it inside I(), as follows:
+lin_squared=lm(sales ~ TV + radio + I(TV^2), data=train.dat)
+summary(lin_squared)
+
+# You can similarly use I() to add other functions of variables, such as
+# x^3, e^x, etc.
 
