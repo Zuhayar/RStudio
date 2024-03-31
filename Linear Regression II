@@ -1,14 +1,3 @@
-
-### 0. BEFORE WE BEGIN: SET WORKING DIRECTORY
-
-# Make sure that you have all the material for today (including this file) 
-# in the same folder, and then do:
-
-# Session > Set Working Directory > To Source File Location.  
-
-# Afterwards, you should be able to read the Advertising data
-# (based on a fictitious dataset from Textbook 2)
-
 dat<-read.csv("Advertising_Lec3.csv", stringsAsFactors = TRUE)
 
 # Note: stringsAsFactors specifies whether you want R to 
