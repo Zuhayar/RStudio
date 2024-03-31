@@ -1,0 +1,284 @@
+
+
+install.packages("arules")       # main package
+install.packages("viridisLite")  # needed for arulesViz
+install.packages("arulesViz")    # to visualize results
+
+library("arules")
+library("viridisLite")
+library("arulesViz")
+
+# For today's session, we'll use a dataset that comes with the 
+# arules package and which already comes in transaction format
+# (we'll see at the end how to load a new dataset as transactions).
+
+data("Groceries")
+
+# What's in this dataset?
+
+?Groceries
+
+
+
+### 1. EXPLORE THE TRANSACTION IN OUR DATA:
+
+# Let's begin by using the "summary" function:
+
+summary(Groceries)
+
+# This already gives us some useful information! In particular:
+# number of transactions = 9,835;
+# number of different items (in this case, products) = 169;
+# most frequent items;
+# length distribution (how many people bought 1 item, 2 items, etc.),
+# as well as summary of the length values (e.g., on average, each person
+# bought 4.4 items); and
+# whether higher-level categories exist in the data.
+
+# In this case, the equivalent of "head" that allows us to look at the
+# first few observations (transactions, or rows) is the function "inspect",
+# except that you have to explicitly say which rows you want to look at. 
+# For example, let's look at the first five transactions:
+
+inspect(Groceries[1:5])
+
+# And we can get a sense of how often products are purchased together
+# with the function "crossTable":
+
+tbl <- crossTable(Groceries)
+
+# We can look at, for example, the first 5 items in the matrix:
+tbl[1:5,1:5]
+
+# Note: the elements in the diagonal correspond to how often the
+# product appears in the dataset.
+
+# Or we can look for specific information regarding a pair of products
+# (for example, meat and coffee)
+tbl['meat','coffee']
+
+# There are many other things we can look at just from the data,
+# but let's look at only one more: graphs that summarize the
+# most frequent items, with the function itemFrequencyPlot
+
+# First, filter for those items with support at least 10%
+# (that is, products that show up in at least 10% of transactions):
+itemFrequencyPlot(Groceries, support = 0.1, horiz=TRUE)
+
+# Or, we can list the top-10:
+itemFrequencyPlot(Groceries, topN=10, horiz=FALSE)
+
+# To learn more about this function:
+?itemFrequencyPlot
+
+# Note that all of the information above can be useful to help
+# us determine what minimum support, for example, may be 
+# reasonable for when we're looking for rules; or what lengths
+# of rules (that is, involving how many products) are reasonable
+# to search for.
+
+
+### TopHat: using our crossTable, how many people buy coffee and yogurt? 
+
+
+
+### 2. BUILDING ASSOCIATION RULES:
+
+# To build association rules, following the algorithm discussed
+# in class, we use the function "apriori" as follows:
+
+# apriori (data, parameter = list(support = min_support,
+#                                 confidence = min_confidence,
+#                                 minlen = min. # of items in rule,
+#                                 maxlen = max. # of items in rule,
+#                                 target = 'rules'))
+
+# You need to specify target = 'rules' to get association rules.
+# If you leave some of the parameters blank, these are the 
+# default parameters:
+# "The default behavior is to mine rules with minimum support of 0.1, 
+# minimum confidence of 0.8, maximum of 10 items (maxlen),"
+# and minimum of 1 item (minlen). I suggest setting minlen>=2.
+
+
+# Let's build our first set of rules with support >= 1%, 
+# confidence >= 50%, and 2 or more items (max. 10 by default):
+
+rules <- apriori(Groceries,
+                 parameter = list(support=.01,
+                                  confidence=.5,
+                                  minlen=2,
+                                  target='rules'))
+
+# We can obtain some useful information with the function summary:
+
+summary(rules)
+
+# In particular, we can see how many rules were generated, what
+# is the length distribution of these rules (i.e., how many items
+# are involved in them), and summary of the main quality measures
+# of these rules (support, confidence, lift, count).
+# Note: coverage = support of the antecedent.
+
+# We can again get more detailed about what these rules are using
+# the function "inspect". 
+
+inspect(rules)
+
+# In order to facilitate our study of them, we can sort them, for example, in
+# decreasing order of lift (using the function "sort") and 
+# we can look at only the first (top) six rules (using "head").
+
+inspect(head(sort(rules, by='lift', decreasing = T)))
+
+# We notice that we only got 15 rules in total and that they include
+# only frequent items on both sides of the rule (antecedent and
+# consequent). We've apparently set the support too high!
+# Particularly since we know that most people buy only 1 item.
+
+# Let's now look for rules with support>=0.15% (approx. 15 purchases)
+# and confidence >= 60%; that is, given that the item(s) in the
+# antecedent are purchased, we want the probability of the consequent
+# also being purchased to be >= 60%.
+
+rules2 <- apriori(Groceries,
+                 parameter = list(support=.0015,
+                                  confidence=.6,
+                                  minlen=2,
+                                  target='rules'))
+
+# Let's now inspect our new set of rules:
+
+summary(rules2)
+inspect(head(sort(rules2, by='lift', decreasing = T)))
+
+# We could also look at the rules sorted by confidence:
+inspect(head(sort(rules2, by='confidence', decreasing = T)))
+
+# Notice that now we get a lot of "whole milk" in the consequent
+# of the top rules - this is no coincidence, since "whole milk"
+# is also the item that is most commonly purchased. This is why
+# the lift measure is useful.
+
+
+# We could also look at aggregated rules, by a higher category,
+# which in this dataset is stored in "level2":
+rules_level2 <- aggregate(rules2, by = "level2")
+inspect(head(rules_level2))
+
+# Because of the aggregation, we lost information about 
+# support, confidence, and lift. If we wanted to get that
+# information at the higher level, you'd need to first 
+# aggregate the data and THEN run the model.
+
+Groceries_level2 <-aggregate(Groceries, by="level2")
+newRules <- apriori(Groceries_level2,
+                  parameter = list(support=.0015,
+                                   confidence=.6,
+                                   minlen=2,
+                                   target='rules' ))
+inspect(head(sort(newRules, by='lift', decreasing = T)))
+
+
+
+### 3. SUBSETTING OUR RULES:
+
+# We can "zoom in" to look at some of our rules, 
+# based on some pre-specified criteria.
+# For this, we'll use the function "subset":
+
+# subset(rules_object, subset = [options])
+
+# where the options can be given by minimum/maximum values
+# of confidence, lift, or support; or by elements in the 
+# left-hand side (lhs) or right-hand-side (rhs) of our rules.
+
+# For example, we could create the subset of rules that have
+# "baking powder" in the left-hand side and confidence > 70%:
+
+subrules = subset(rules2, lhs %in% "baking powder" & confidence > .7)
+
+# where %in% means that "baking powder" must belong to the lhs.
+
+# With this object created, we can explore it using 
+
+inspect(head(sort(subrules, by = 'lift', decreasing = T)))
+
+# where we use head and sort to look only at the top rules
+# (in this case, sorted in decreasing order of lift)
+
+# Let's try to explore a few other things:
+
+# What if I wanted two items on the lhs? For example, ham
+# and processed cheese.
+
+subrules = subset(rules2, lhs %in% c('ham','processed cheese'))
+inspect(head(sort(subrules, by = 'lift', decreasing = T)))
+
+# What happened?
+# With the option %in%, we get ham OR processed cheese;
+# if we want both, we need to replace it by %ain% ("all in") -
+# TOP HAT:
+
+subrules = subset(rules2, lhs %ain% c('ham','processed cheese'))
+inspect(head(sort(subrules, by = 'lift', decreasing = T)))
+
+# What if we wanted any kind of cheese on the lhs? 
+# We can use %pin% ("partially in"):
+
+subrules = subset(rules2, lhs %pin% 'cheese')
+inspect(head(sort(subrules, by = 'lift', decreasing = T)))
+
+# And we can also filter by elements in the right-hand side
+# (i.e., in the consequent). 
+# For example, what items best predict that someone will
+# buy yogurt? Let's now filter by lift>5 and sort by confidence
+
+subrules = subset(rules2, subset=rhs %in% 'yogurt' & lift>5)
+inspect(head(sort(subrules, by = 'confidence', decreasing = T)))
+
+
+
+### 4. OTHER USEFUL INFORMATION:
+
+# To write our rules to a .csv file:
+write(rules2, file = "GroceryRules_030724.csv",
+      sep = ",", quote = TRUE, row.names = FALSE)
+
+
+# What if we had a file with a list of transactions, with a
+# transaction in each row (and items separated by space)? 
+# How could we read that and convert it to a transactions dataset?
+
+# Using the example retail.dat file, we use the function
+# read.transactions (do NOT run):
+
+datExample <- read.transactions("retail.dat", 
+                                format="basket", sep =" ")
+summary(datExample)
+
+# If each row had products (or other kind of items) separated
+# by a comma, then you'd use sep="," in the code above.
+
+
+# Finally, note that it is also possible to use Association Rules
+# to look at products that are LESS likely to be
+# purchased together. First, make sure to use a low support
+# and low confidence:
+
+anti.rules <- apriori(Groceries,
+                 parameter = list(support=.001,
+                                  conf = .01,
+                                  minlen=2,
+                                  maxlen=2,
+                                  target='rules'))
+
+# Q: Are different types of beer less likely to be purchased
+# together? That is, are they substitutes?
+
+inspect(subset(anti.rules, lhs %pin% 'beer' & rhs %pin% 'beer'))
+
+# Notice that lift is much lower than 1! You can read this as, 
+# if you buy one type of beer, then you're LESS
+# likely to buy the other kind (compared to someone at random
+# in the transactions' dataset), since lift = 0.4 (approx.)
