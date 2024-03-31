@@ -1,0 +1,262 @@
+
+
+### 0. BEFORE WE BEGIN: 
+
+# We need to install 2 packages to build and visualize trees:
+
+install.packages("rpart")
+install.packages("rpart.plot")
+
+# And then load them:
+
+library(rpart)
+library(rpart.plot)
+
+# Set working directory: Session -> Set Working Directory -> To Source File location
+
+# Note: for this session, we'll use a modified version of a dataset that can 
+# be found here: https://archive.ics.uci.edu/ml/datasets/Auto+MPG, and which we
+# used for Lecture 7 (note, however, that the trees will not look exactly
+# the same as the ones in the lecture; this is normal)
+
+
+### 1. READ AND EXPLORE OUR DATASET:
+
+dat = read.csv("data_car.csv")
+
+summary(dat)
+head(dat)
+str(dat)
+
+# And we can also plot the correlation between all variables simply 
+# with the function "plot", applied to the entire dataset:
+
+plot(dat)
+
+# Note 1: we actually don't need to worry about the correlation 
+# between independent variables when using a regression (or classification)
+# tree! The method "takes care of it"; if one variable is picked
+# at some point to make a split and the other (highly correlated)
+# variable does not add any useful additional information, then it 
+# will just not be used for a split later.
+
+# Note 2: for regression trees, we'll continue to prefer to take
+# a log transformation of the dependent variable (and work with it
+# instead) if the original dependent variable is too skewed.
+# Therefore, you should remember to check the histogram of the
+# dependent variable:
+
+hist(dat$mpg)
+
+# In this case, it's not that skewed, so no need to apply a
+# log-transformation.
+
+
+### 2. SPLIT OUR DATASET INTO TRAINING AND TEST SET:
+
+# We'll just use the function "sample", as we did for linear regression.
+# This time, we'll leave 75% of our observations in the training set.
+# Remember that there is randomness involved in this process, so we need to 
+# begin by "setting a seed"! 
+
+set.seed(1760, sample.kind = "Rejection")
+spl = sample(nrow(dat), 0.75*nrow(dat))
+head(spl)
+
+# Now we can split our dataset:
+train.dat = dat[spl,]
+test.dat = dat[-spl,]
+
+
+
+### 3. BUILD OUR FIRST REGRESSION TREES:
+
+# In order to build a regression tree, we use the function "rpart", as follows:
+
+# rpart (formula, data, method="anova", minbucket, cp)
+
+# method="anova" tells the function rpart that we want to build a regression tree,
+# as opposed to a classification tree. Let's first try a tree with minbucket = 10 
+# and cp=0.01)
+
+tree1 = rpart(mpg ~ . , data = train.dat, method = "anova",
+              minbucket = 10, cp = 0.01)
+
+# Let's look at our tree, using the function "prp":
+
+prp(tree1)
+
+# (Note: we won't get the same trees as in the lecture; that's normal)
+
+
+# What if we used a larger minbucket (e.g., 50)?
+
+tree2 = rpart(mpg ~ . , data = train.dat, method = "anova",
+              minbucket = 50, cp = 0.01)
+prp(tree2)
+
+# Or a smaller minbucket, e.g., 2?
+
+tree3 = rpart(mpg ~ . , data = train.dat, method = "anova",
+              minbucket = 2, cp = 0.01)
+prp(tree3)
+
+# (Note: sometimes this happens! The tree doesn't *always* change when
+# you change the parameters. In this case, the constraint cp=0.01 leads
+# to the tree with minbucket=2 having the same number of splits when
+# compared to the tree with minbucket=10.)
+
+# What if we used a smaller cp, e.g., 0? And minbucket=2
+
+tree4 = rpart(mpg ~ . , data = train.dat, method = "anova",
+              minbucket = 2, cp = 0)
+prp(tree4)
+
+# And increasing cp would have the opposite effect: 
+# it would reduce the size of the tree (or, if the increase
+# in cp is not big, it might lead to the same tree size;
+# but never to a bigger tree).
+
+
+
+### 4. CROSS-VALIDATION:
+
+# As we saw in the lecture, we'll use cross-validation to help us determine
+# the best value for the cp parameter. Note that, in general, this is also
+# where you would actually start your tree-building process: after splitting
+# your dataset, you'll typically select a minbucket and then run cross-validation
+# to pick a value of cp. Today, we will use minbucket=10.
+
+# First, we need to build a tree with the desired value of minbucket
+# AND cp=0 (or if that takes too much time to compute, a very small value 
+# of cp). 
+
+# IMPORTANT: THERE IS ALSO RANDOMNESS IN CROSS-VALIDATION, SO BEFORE
+# WE BUILD THE TREE WITH CP=0, WE SHOULD USE SET.SEED:
+
+set.seed(1760, sample.kind = "Rejection")
+tree_cv = rpart(mpg ~ . , data = train.dat, method = "anova",
+              minbucket = 10, cp = 0)
+
+# Once we have such a tree, we use the function "plotcp":
+
+plotcp(tree_cv)
+
+# Note: the dotted line in the "plotcp" graph represents the minimum 
+# cross-validation error plus one standard deviation. One simple rule of
+# thumb is to consider the maximum cp value (i.e., the first one from
+# left to right) for which the x-val relative error falls
+# under that line. This represents the simplest model (smallest tree)
+# that gives us a cross-validation error that is statistically similar
+# to the "best" tree (i.e., the tree with the smallest cross-validation
+# error).
+
+# Note 2: To look at similar (though not exactly the same) information as the
+# one behind the cross-validation graph, you can use the function
+# "printcp":
+
+printcp(tree_cv)
+
+# Notes: printcp shows the MINIMUM cp for which you get the size of the tree
+# given by "nsplit"; plotcp, on the other hand, shows the MEDIAN of the cp 
+# values for which you get that size of tree. "xerror" is the relative 
+# cross-validation error (relative to the error made on the entire training set 
+# when considering a single-node tree), which is the value on the y-axis.
+
+
+# In this particular case, what do you notice? What value of "cp" would
+# you use? Let's compare two alternatives:
+
+tree_optA = rpart(mpg ~ . , data = train.dat, method = "anova",
+                  minbucket = 10, cp = 0.014)
+prp(tree_optA)
+
+tree_optB = rpart(mpg ~ . , data = train.dat, method = "anova",
+                  minbucket = 10, cp = 0)
+prp(tree_optB)
+
+# With this, let us pick our final regression tree model as the simpler
+# one of the two (since we don't gain much in terms of predictive power
+# from picking the most complicated one; and in some cases - though likely not
+# here - we may even do worse with a more complicated tree due to
+# overfitting):
+
+finalTree = tree_optA
+
+
+
+### 5. PREDICTING VALUES AND EVALUATING OUR MODEL
+
+# As before, we can use the function "predict" to compute predicted
+# values on the test set and store them in the test set, as follows:
+
+test.dat$pred = predict(finalTree, newdata = test.dat)
+
+# Let's look at the first 10 rows of the test set:
+
+head(test.dat, 10)
+
+
+# Next, we can compute our out-of-sample R-squared as we
+# did in Lecture 3.
+
+# First, we need to compute the predicted value in our simple benchmark model,
+# namely, the average mpg ON THE TRAINING SET:
+
+mean_mpg = mean(train.dat$mpg)
+
+# Then, we compute the sum of squared errors (SSE) using our tree:
+
+SSE = sum((test.dat$mpg - test.dat$pred)^2)
+
+# And the total sum of squared errors (SST) using our simple benchmark model
+# (the average mpg in the training set)
+
+SST = sum((test.dat$mpg - mean_mpg)^2)
+
+# With that, we finally get
+
+OSR2 = 1 - SSE/SST
+OSR2
+
+
+# Similarly, we could also compute the Mean Absolute Error on
+# the test set as follows:
+
+MAE = mean(abs(test.dat$mpg - test.dat$pred))
+MAE
+
+# One advantage of MAE is that it is in the same units than the dependent
+# variable. It gives us a measure of, on average, how far off we are with
+# our predictions. So in this case, our predictions are, on average,
+# 2.84 MPG off from the actual values.
+
+
+
+### BONUS: NICER TREES
+
+# Let's consider our final tree (finalTree). We can also plot it
+# in a slightly fancier way using "rpart.plot"
+
+rpart.plot(finalTree)
+
+# Note that (i) the color of the node depends on the predicted value of 
+# the dependent variable; and (ii) now we also have the % of the observations
+# (of the training set) that fall into each node
+
+# We can also use this new function to get more information in the tree. 
+# For example:
+
+rpart.plot(finalTree, extra=101)
+
+# That gives us not only the %, but also the total number of 
+# observations in each node.
+
+# We could also just get the total number of observations:
+
+rpart.plot(finalTree, extra=1)
+
+# As always, remember that you can learn more about a function using "?"
+
+?rpart.plot
+
