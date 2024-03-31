@@ -1,0 +1,150 @@
+
+library(foreign)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(dplyr)
+
+### PART I - RECONSTRUCTING THE TREE FROM LAST WEEK (NO LOSS PARAMS.) ###
+
+### 1. READ AND EXPLORE OUR DATASET:
+
+dat = read.arff("5year.arff")
+
+# We'll again remove missing values:
+dat = na.omit(dat)
+
+# And let's rename the "class" column to "bankrupt":
+dat=rename(dat, bankrupt = class)
+
+
+### 2. SPLIT OUR DATASET INTO TRAINING AND TEST SET:
+
+set.seed(12, sample.kind = "Rejection")
+spl = sample.split(dat$bankrupt,SplitRatio=0.8)
+
+# Using spl (a vector of TRUE and FALSE values), we can split our data:
+
+train.dat = dat[spl==TRUE,]
+test.dat = dat[spl==FALSE,]
+
+
+### 3. BASELINE: CLASSIFICATION TREE WITHOUT LOSS MATRIX (LAST WEEK)
+
+mb = 10
+
+tree1 = rpart(bankrupt ~ ., 
+              data=train.dat, 
+              method="class",
+              minbucket = mb,
+              cp=0.037)
+rpart.plot(tree1)
+
+
+### 4. PREDICTING VALUES AND EVALUATING OUR MODEL
+
+pred = predict(tree1, newdata = test.dat, type="class")
+
+# Remember that we need to specify that we want type="class" 
+# to get the predicted value (0/1).
+
+# With this, we can compute our confusion matrix...
+
+ConfMat = table(test.dat$bankrupt,pred)
+ConfMat
+
+# ... and some basic performance measures:
+
+# Sensitivity:
+3/(3+17)
+
+# Specificity:
+583/(583+3)
+
+# As discussed last week, the sensitivity is much lower - in large part
+# because there are many more 0s than 1s and we're implicitly telling
+# R (by not using a loss matrix) that we care equally about misclassifying
+# both categories.
+
+
+
+### PART II - INCORPORATING A LOSS MATRIX ###
+
+
+# Let us now use a loss matrix to tell our classification tree that
+# we consider a False Negative (i.e., a predicted 0 that turns out 
+# to be 1) to be 10 times worse than a False Positive (i.e., a 
+# predicted 1 that turns out to be 0). 
+
+# First, we build the loss matrix:
+
+loss.matrix = matrix(c(0,10,1,0), nrow=2, ncol=2, byrow=FALSE)
+loss.matrix
+
+# We can then build a tree using this loss matrix as follows
+
+tree_loss = rpart(bankrupt ~ ., 
+                   data=train.dat, 
+                   method="class",
+                   minbucket = mb,
+                   cp=0.037,
+                   parms=list(loss=loss.matrix))
+
+# In words, we added a parameter (parms) containing a list that contains 
+# the loss matrix.
+
+# We can look at our new tree:
+
+rpart.plot(tree_loss)
+
+# We note that now have a higher number of nodes where we predict "1",
+# which in this case, also leads to a higher % of observations being predicted 1.
+# This is the result of telling our model that we care more about 
+# being wrong when we predict 0 than when we predict 1!
+
+# It also used very different financial attributes this time!
+
+
+# Note: doing cross-validation with a loss matrix is (unfortunately) 
+# a bit more complicated than simply using the plotcp function. If you need 
+# help with this for your projects, please let me know and I'll explain how
+# you can do this.
+
+
+# Let's evaluate the new model (with loss matrix).
+# First, we generate the predicted values with the new tree:
+
+test.dat$pred_loss = predict(tree_loss, newdata = test.dat, type="class")
+
+# Using this prediction vector, we can build our new confusion matrix:
+
+ConfLoss = table(test.dat$bankrupt, test.dat$pred_loss)
+ConfLoss
+
+# What do you notice, compared to our previous confusion matrix?
+
+# Sensitivity:
+16/(16+4)
+
+# Specificity:
+531/(531+55)
+
+# We can also multiply the new confusion matrix by the loss matrix 
+# and compute the total loss by adding up the resulting product:
+
+MatMult = ConfLoss * loss.matrix
+MatMult
+loss = sum(MatMult)
+loss
+
+# We can compare it against the total loss that we'd obtain with the
+# model where we don't take into account the difference in 
+# misclassification costs (i.e., our original model):
+
+base_MatMult = ConfMat * loss.matrix
+base_loss = sum(base_MatMult)
+base_loss
+
+# If the reality was that we cared 10 times more about FN than FP,
+# then not accounting for this when building the tree would have
+# resulted in a much higher total loss!
