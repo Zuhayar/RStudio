@@ -1,0 +1,113 @@
+
+```{r}
+# Problem 0:
+setwd("~/Downloads") 
+HR = read.table("HR_Data.txt", sep = "\t", header = T)
+```
+
+# Problem 1
+```{r}
+# (a)
+HRcount <- table(HR$dept)
+max(HRcount)
+min(HRcount)
+#sales is largest with 4140
+#management is smallest with 630
+
+# (b)
+
+## Test:chi squared test for uniform expected counts
+## Null Hypothesis: That the counts are equal in proportion
+## Alt Hypothesis: That the counts aren't equal in proportion
+chisq.test(HRcount)
+# (c)
+# pval = 2.2e-16
+# Conclusion: the P value is statistically significant therefore we can assume that we have enough evidence to deny the null hypothesis and accept the alternative hypothesis 
+
+# (d)
+# Assumption: test doesn't have any assumptions for normality as it is not a t-test 
+```
+
+# Problem 2
+```{r}
+# (a)
+HRdept_status <- table(HR$dept,HR$left)
+# (b)
+HRdept_status/nrow(HR)
+#Lowest rate of leaving were in management 
+#highest rate of leaving was seen in sales
+# (c)
+chisq.test(HRdept_status)
+#Test:chi squared test for independence
+## Null Hypothesis: department and leaving are independent
+## Alt Hypothesis: department and leaving aren't independent
+
+#pval = 7.042e-15
+# Conclusion: the P value is statistically significant therefore we can assume that the department you work in and leaving aren't independent 
+
+```
+
+# Problem 3
+```{r}
+# (a)
+HR_accident_left <- table(HR$left,HR$Work_accident)
+# (b)
+WORK_accident= HR[HR$Work_accident == 1,]
+
+## Test:bninomial test 
+## Null Hypothesis: Of the employees who had an accident 5% of them left the company 
+## Alt Hypothesis: Of the employees who had an accident more than 5% of them left the company 
+binom.test(169,nrow(WORK_accident),p = .05,alternative = "greater", conf.level = .95)
+# (c)
+# pval = 1.837e-08
+# Conclusion: The p value is statistically signifant and we can deny the null hypothesis and accept the alternative therefore the rate of employees who had an accident leaving the company is greater than 5%
+```
+
+# Problem 4
+```{r}
+# (a)
+## Test: 2 sample t test
+##
+## Null Hypothesis: satisfaction level among employees who did/didn't have an accident are the same
+## Alt Hypothesis: satisfaction level among employees among employees who had an accident is less than the satisfaction level of employess who didn't have an accident 
+
+# (b)
+t.test(HR$satisfaction_level~HR$Work_accident,alternative = "less",conf.level = .95)
+# p-value = 1.518e-14
+# Conclusion: p value is statistica
+# (c)
+#Assumptions: independent and normality and random sample 
+qqnorm(HR$satisfaction_level)
+#independence is satisfied 
+```
+
+# Problem 5
+```{r}
+# (a)
+## Hypo Test: 2 sample t - test 
+## Assumptions:  independent and normality and random sample 
+## Null Hypothesis: Average monthly workers worked by employees who left is the same than ones who stayed 
+## Alt Hypothesis: Average monthly workers worked by employees who left is greater than ones who stayed 
+
+# (b)
+t.test(HR$average_montly_hours ~ HR$left , alternative = "less", conf.level = .95)
+# p-value = 2.954e-14
+# Conclusion: Deny the null and accept the average amount of hours worked by people who left is higher than people who stayed 
+
+# (c)
+qqnorm(HR$average_montly_hours)
+# independence is satisfied 
+
+```
+# Problem 6
+```{r}
+HR_Stay =HR[HR$left ==0,]
+HR_Left=HR[HR$left==1,]
+
+plot(HR_Stay$satisfaction_level~HR_Stay$average_montly_hours,xlab = "average monthly hours",ylab = "satisfaction level",ylim = c(0,1),xlim = c(100,300),col = "red")
+par(new = T)
+plot(HR_Left$satisfaction_level~HR_Left$average_montly_hours,xlab = "average monthly hours",ylab = "satisfaction level",ylim = c(0,1),xlim = c(100,300),col = "blue")
+
+#Blue is workers who left and there is a clear correlation between workers leaving and them having a poor satisfaction rate. Furthermore, workers who left also worked significantly more hours than ones who stayed. 
+
+```
