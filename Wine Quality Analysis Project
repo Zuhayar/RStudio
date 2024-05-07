@@ -1,0 +1,264 @@
+Linear regression:
+wine = read.csv('winequality.csv')
+dat<-na.omit(wine)
+summary(dat)
+head(dat)
+cor(dat) 
+
+datdummies <-predict(dummyVars(  ~. , data=dat), newdata = dat)
+dat2<-as.data.frame(datdummies)
+
+set.seed(123, sample.kind="Rejection")
+spl = sample(nrow(dat2), 0.7*nrow(dat))
+train.dat = dat[spl, ]
+test.dat = dat[-spl, ]
+
+maxVals = apply(train.dat, 2, max)
+minVals = apply(train.dat, 2, min)
+
+scaled_train = as.data.frame(scale(train.dat, center = minVals, 
+                                   scale = maxVals - minVals))
+
+scaled_test = as.data.frame(scale(test.dat, center = minVals, 
+                                  scale = maxVals - minVals))
+
+#checking split
+nrow(train.dat)/nrow(dat2)
+table(train.dat$quality)/nrow(train.dat)
+table(test.dat$quality)/nrow(test.dat)
+# 70% of the observations in the training set; 
+# proportion of qualities is similar between the training and test sets
+
+linreg = lm(quality ~ ., data=train.dat)
+summary(linreg)
+
+test.dat$pred_vals = predict(linreg, newdata = test.dat)
+SSE= sum((test.dat$pred_vals - test.dat$quality)^2)
+train.dat.mean= mean(train.dat$quality)
+SST= sum((train.dat.mean - test.dat$quality)^2)
+OSR2 = 1 - SSE/SST
+OSR2
+#0.3077866
+
+
+
+Logistic regression:
+
+library("caTools")
+library("ROCR")
+
+wine = read.csv("winequalityN.csv", stringsAsFactors = TRUE)
+wine = na.omit(wine)
+
+# adding new variable
+wine$good.quality = if_else(wine$quality >= 7, 1, 0)
+
+#splitting dataset
+set.seed(123, sample.kind="Rejection")
+split = sample.split(wine$good.quality, SplitRatio = 0.7)
+
+train = wine[split==TRUE,]
+test = wine[split==FALSE,]
+
+# confirming split
+nrow(train)/nrow(wine)
+table(train$good.quality)/nrow(train)
+table(test$good.quality)/nrow(test)
+
+
+# model construction
+log_reg = glm(good.quality ~ as.factor(type) + fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates + alcohol, data = train, family = "binomial")
+summary(log_reg)
+
+  ## updating for significance
+new_log_reg = glm(good.quality ~ fixed.acidity + volatile.acidity + residual.sugar + free.sulfur.dioxide + density + pH, data = train, family = "binomial")
+summary(new_log_reg)
+
+  ## updating for significance
+final_log_reg = glm(good.quality ~ fixed.acidity + residual.sugar + free.sulfur.dioxide + density + pH, data = train, family = "binomial")
+summary(final_log_reg)
+
+## P(Y = 1) = P(wine is quality) = 1/(1 + (exp(-(698.8 + 0.8181*fixed.acidity + 0.313*residual sugar + 0.01327*free.sulfur.dioxide - 729.1*density + 4.424*pH)))) 
+
+
+# making predictions
+threshold = 0.125
+
+test$predProbs = predict(final_log_reg, newdata = test, type = "response")
+
+test$predGoodQuality = ifelse(test$predProbs >= threshold, 1, 0)
+
+# Confusion Matrix
+table(test$good.quality, test$predGoodQuality)
+
+# Accuracy: 93.55%
+(1801 + 13)/nrow(test)
+
+# Sensitivity: 22.03%
+13 / (13 + 46)
+
+# Specificity: 96%
+1801 / (1801 + 79)
+
+
+# ROC and AUC
+roc.pred = prediction(test$predProbs, test$good.quality)
+
+perf = performance(roc.pred, "tpr", "fpr")
+
+plot(perf,  main = "ROC Curve",  xlab = "1 - Specificity", ylab = "Sensitivity", colorize=TRUE)             
+abline(0,1)
+
+perf_auc = performance(roc.pred, "auc")
+as.numeric(perf_auc@y.values)
+
+
+Regression tree: 
+library(rpart)
+library(rpart.plot)
+hist(dat2$quality)
+#not skewed so no need for log transformation
+
+regTree = rpart(quality ~ ., data = train.dat, method = "anova",
+                minbucket = 10, cp = 0.01)
+prp(regTree)
+
+#cross validation to find best value of cp 
+set.seed(123, sample.kind = "Rejection")
+tree_cv = rpart(quality ~ ., data= train.dat, method= "anova", minbucket= 10, cp = 0)
+plotcp(tree_cv)
+printcp(tree_cv)
+#.0032936, size of tree 16 
+final_tree = rpart(quality ~ . , data = train.dat, method = "anova",
+                  minbucket = 10, cp = .0032936)
+prp(final_tree)
+
+test.dat$pred = predict(final_tree, newdata = test.dat)
+mean_quality = mean(train.dat$quality)
+SSE = sum((test.dat$quality - test.dat$pred)^2)
+SST = sum((test.dat$quality - mean_quality)^2)
+OSR2 = 1 - SSE/SST
+OSR2
+
+MAE = mean(abs(test.dat$quality - test.dat$pred))
+MAE
+#0.5678865
+#predictions on average are 0.5678865 off from the actual values
+
+rpart.plot(final_tree)
+rpart.plot(final_tree, extra=101)
+
+Random forest: 
+#random forest 
+library(randomForest)
+
+str(dat2$quality)
+ncol(dat2) - 1
+#13, 13/3= , mtry= 4
+
+set.seed(123, sample.kind = "Rejection")
+rf_ini = randomForest(quality~., data=train.dat, ntree=100, nodesize=300, mtry=4)
+varImpPlot(rf_ini)
+plot(rf_ini)
+#error seemed to stabilize before reaching 100 so no need for more trees
+rpart.plot(regTree)
+
+colnames(train.dat)
+excl = c(13)
+excl
+x = train.dat[,-excl]
+y = train.dat$quality
+set.seed(123, sample.kind="Rejection")
+tuneRF(x, y, mtryStart = 4, stepFactor = 2, ntreeTry=100, nodesize=300, improve=0.01)
+#mtry= 8 gives us a lower OOB error 
+set.seed(123, sample.kind="Rejection")
+rf_final = randomForest(quality~., data=train.dat, ntree=100, nodesize=300, mtry=8)
+
+pred_rf = predict(rf_final, newdata=test.dat)
+SSE_rf = sum((test.dat$quality - pred_rf)^2)
+SST_rf = sum((test.dat$quality - mean)^2)
+OSR2_rf = 1 - SSE_rf/SST_rf
+OSR2_rf
+#0.3510584
+# minor improvement in predictions so random forest performed better than single tree
+
+ANN:
+install.packages("caTools")
+install.packages("ROCR")
+
+library(caTools)
+library(ROCR)
+install.packages("neuralnet")  
+library("neuralnet")
+
+#load data 
+wines<-read.csv("winequalityN.csv")
+wines = na.omit(wines)
+#make wine type binary
+wines$type <- ifelse(wines$type == 'red', 0, 1)
+
+# Split the intermediate set into training and validation sets.
+set.seed(123, sample.kind="Rejection")
+spl2 = sample(nrow(intermediate), 2/3*nrow(intermediate)) 
+train = intermediate[spl2,]
+valid = intermediate[-spl2,]
+
+#scale data
+maxVals = apply(train, 2, max)
+minVals = apply(train, 2, min)
+scaled_train = as.data.frame(scale(train, center = minVals, 
+                                   scale = maxVals - minVals))
+scaled_valid = as.data.frame(scale(valid, center = minVals, 
+                                   scale = maxVals - minVals))
+scaled_test = as.data.frame(scale(test, center = minVals, 
+                                  scale = maxVals - minVals))
+
+#ann testing 
+neural = neuralnet(quality~., data = scaled_train, hidden=c(4,4), 
+                   linear.output=TRUE)
+plot(neural1)
+
+neural = neuralnet(quality~., data = scaled_train, hidden=c(2,2,2), 
+                   linear.output=TRUE)
+plot(neural2)
+
+neural = neuralnet(quality~., data = scaled_train, hidden=c(4,2), 
+                   linear.output=TRUE)
+plot(neural3)
+
+neural = neuralnet(quality~., data = scaled_train, hidden=c(3,2,1), 
+                   linear.output=TRUE)
+plot(neural4)
+
+set.seed(123, sample.kind="Rejection")
+neural = neuralnet(quality~., data = scaled_train, hidden=c(2,2,2), linear.output=TRUE)
+neural = neuralnet(quality~., data = scaled_train, hidden=c(8), linear.output=TRUE)
+neural = neuralnet(quality~., data = scaled_train, hidden=c(3,2,1), linear.output=TRUE)
+neural = neuralnet(quality~., data = scaled_train, hidden=c(4,4), linear.output=TRUE)
+neural = neuralnet(quality~., data = scaled_train, hidden=c(4,4),  linear.output=TRUE)
+neural_final = neuralnet(quality~., data = scaled_nonTest, hidden=c(4,4), linear.output=TRUE)
+
+#get OSR2 for each training run
+pred.valid = predict(neural, newdata=scaled_valid)
+m = min(train$quality)
+M = max(train$quality)
+valid.pred.nn = (pred.valid * (M - m)) + m
+train.mean = mean(train$quality)
+SSE.valid = sum((valid.pred.nn - valid$quality)^2)
+SST.valid = sum((train.mean - valid$quality)^2)
+1 - SSE.valid/SST.valid
+
+#run the final ann model
+scaled_nonTest = rbind(scaled_train, scaled_valid)
+set.seed(123, sample.kind="Rejection")
+neural_final = neuralnet(quality~., data = scaled_nonTest, hidden=c(4,4), 
+                         linear.output=TRUE)
+plot(neural_final)
+
+#OSR2 of final model 
+pred.test = predict(neural_final, scaled_test)
+test.pred.final = pred.test * (M - m) + m
+inter.mean = mean(intermediate$quality)
+SSE.test = sum((test.pred.final - test$quality)^2)
+SST.test = sum((inter.mean - test$quality)^2)
+1 - SSE.test/SST.test
